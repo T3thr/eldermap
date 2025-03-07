@@ -46,7 +46,7 @@ export const authOptions: NextAuthOptions = {
           console.log("Firestore db initialized:", db);
 
           // Try username lookup
-          let adminRef = doc(db, "admins", credentials.username);
+          const adminRef = doc(db, "admins", credentials.username); 
           let adminSnap = await getDoc(adminRef);
           let adminData;
 
