@@ -1,24 +1,230 @@
+/* globals.css */
 @import "tailwindcss";
 
 @theme {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-geist-sans), Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
 }
 
+/* Base Color Variables */
 :root {
+  /* Light Theme */
   --background: #ffffff;
   --foreground: #171717;
+  --primary: #ff4500;       /* Vibrant orange for contrast */
+  --secondary: #edc01d;     /* Gold, symbolizing Thai royalty */
+  --accent: #00b4d8;        /* Cyan for interactive elements */
+  --card: #f8f9fa;         /* Light card background */
+  --glass-bg: #ffffffcc;    /* rgba(255, 255, 255, 0.8) */
+  --glass-border: #46040433; /* rgba(255, 255, 255, 0.2) */
+  
+  /* Theme transition settings */
+  --theme-transition-duration: 500ms;
+  --theme-transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Dark Theme Variables */
+html[class="dark"] {
+  --background: #0f0f1a;    /* Dark base for radial gradient */
+  --foreground: #e0e0ff;    /* Light blue for readability */
+  --primary: #00d4ff;       /* Neon cyan for primary actions */
+  --secondary: #ff007a;     /* Neon magenta for highlights */
+  --accent: #00d4ff;        /* Reused primary for consistency */
+  --card: #1e1e3b;         /* Dark card background */
+  --glass-bg: #1e1e3b80;    /* #1e1e3b with 50% opacity */
+  --glass-border: #00d4ff33; /* #00d4ff with 20% opacity */
 }
 
+/* Apply transitions to html and body for smoother theme changes */
+html {
+  transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
+}
+
+/* Body Styles */
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background-image: radial-gradient(circle at center, #1a1a2e 0%, var(--background) 100%);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: 
+    color var(--theme-transition-duration) var(--theme-transition-timing),
+    background var(--theme-transition-duration) var(--theme-transition-timing),
+    background-image var(--theme-transition-duration) var(--theme-transition-timing);
+}
+
+/* Theme transitioning class for global animations */
+html.theme-transitioning * {
+  transition: 
+    background-color var(--theme-transition-duration) var(--theme-transition-timing),
+    border-color var(--theme-transition-duration) var(--theme-transition-timing),
+    color var(--theme-transition-duration) var(--theme-transition-timing),
+    fill var(--theme-transition-duration) var(--theme-transition-timing),
+    stroke var(--theme-transition-duration) var(--theme-transition-timing),
+    box-shadow var(--theme-transition-duration) var(--theme-transition-timing) !important;
+}
+
+/* Base Layer for Typography */
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 700;
+    color: var(--primary);
+    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  
+  /* Common elements that should transition smoothly */
+  a, button, input, select, textarea {
+    transition: 
+      color var(--theme-transition-duration) var(--theme-transition-timing),
+      background-color var(--theme-transition-duration) var(--theme-transition-timing),
+      border-color var(--theme-transition-duration) var(--theme-transition-timing),
+      box-shadow var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+}
+
+/* Glass Effect Utility */
+.glass-effect {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 1rem;
+  box-shadow: 0 4px 30px #0000001a; /* rgba(0, 0, 0, 0.1) */
+  transition: 
+    background var(--theme-transition-duration) var(--theme-transition-timing),
+    border-color var(--theme-transition-duration) var(--theme-transition-timing),
+    box-shadow var(--theme-transition-duration) var(--theme-transition-timing);
+}
+
+/* Custom Animations */
+@layer utilities {
+  @keyframes fade_in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes slide_in {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .animate-fade-in {
+    animation: fade_in 0.5s ease-out;
+  }
+
+  .animate-slide-in {
+    animation: slide_in 0.5s ease-out;
+  }
+
+  /* Responsive Typography */
+  .text-thai-xl { font-size: 2.5rem; line-height: 1.2; }
+  .text-thai-lg { font-size: 1.875rem; line-height: 1.3; }
+  .spacing-thai { padding: 1rem; margin: 1rem; }
+
+  /* Responsive Design */
+  @media (max-width: 1024px) {
+    .text-thai-xl { font-size: 2rem; }
+    .text-thai-lg { font-size: 1.5rem; }
+    .spacing-thai { padding: 0.75rem; margin: 0.75rem; }
+    .grid-cols-3 { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (max-width: 768px) {
+    .text-thai-xl { font-size: 1.75rem; }
+    .text-thai-lg { font-size: 1.25rem; }
+    .spacing-thai { padding: 0.5rem; margin: 0.5rem; }
+    .grid-cols-3 { grid-template-columns: 1fr; }
+    .max-w-5xl { max-width: 100%; }
+  }
+
+  /* Color Utility Classes with transitions */
+  .bg-background { 
+    background-color: var(--background);
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  .text-background { 
+    color: var(--background);
+    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  .bg-foreground { 
+    background-color: var(--foreground);
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  .text-foreground { 
+    color: var(--foreground);
+    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  .bg-primary { 
+    background-color: var(--primary);
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  .text-primary { 
+    color: var(--primary);
+    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  .bg-secondary { 
+    background-color: var(--secondary);
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  .text-secondary { 
+    color: var(--secondary);
+    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  .bg-accent { 
+    background-color: var(--accent);
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  .text-accent { 
+    color: var(--accent);
+    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  .bg-card { 
+    background-color: var(--card);
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  .text-card { 
+    color: var(--card);
+    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  .bg-glass-bg { 
+    background-color: var(--glass-bg);
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  .text-glass-bg { 
+    color: var(--glass-bg);
+    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  .border-glass-border { 
+    border-color: var(--glass-border);
+    transition: border-color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+  .text-glass-border { 
+    color: var(--glass-border);
+    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+}
+
+/* SVG Styling */
+svg {
+  transition: all var(--theme-transition-duration) var(--theme-transition-timing);
+}
+
+svg path {
+  @apply transition-all duration-300;
+}
+
+svg path:hover {
+  filter: drop-shadow(0 4px 6px #00000033); /* rgba(0, 0, 0, 0.2) */
+}
+
+/* Text Shadow Utility */
+.text-shadow {
+  text-shadow: 1px 1px 2px #00000080; /* rgba(0, 0, 0, 0.5) */
+  transition: text-shadow var(--theme-transition-duration) var(--theme-transition-timing);
+}
+
+/* Ensure Light Theme Application */
+html:not([class="dark"]) body {
+  background: var(--background);
+  color: var(--foreground);
 }
