@@ -42,5 +42,6 @@ yarn-error.log*
 next-env.d.ts
 
 # accountkey
-/scripts/path/to/serviceAccountKey.json
+scripts/path/to/serviceAccountKey.json
+
 
