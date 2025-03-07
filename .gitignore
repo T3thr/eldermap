@@ -42,4 +42,5 @@ yarn-error.log*
 next-env.d.ts
 
 # accountkey
-/app/scripts/path/to/serviceAccountKey.json
+/eldermap/scripts/path/to/serviceAccountKey.json
+
