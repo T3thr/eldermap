@@ -71,7 +71,7 @@ const NewsBanner = () => {
                 </h3>
                 <div className="text-foreground/80 dark:text-gray-300 space-y-3 p-3 bg-accent/5 rounded-lg border border-primary/10">
                   <p>Welcome to our new Thai Provinces History platform!</p>
-                  <p>We've just added 10 new historical timelines for northern provinces.</p>
+                  <p>We&apos;ve just added 10 new historical timelines for northern provinces.</p>
                 </div>
               </div>
               
@@ -84,7 +84,7 @@ const NewsBanner = () => {
                   className="h-4 w-4 text-primary rounded border-primary/30 focus:ring-primary"
                 />
                 <label htmlFor="dontShowAgain" className="ml-2 text-sm text-foreground/80 dark:text-gray-300">
-                  Don't show this again
+                  Don&apos;t show this again
                 </label>
               </div>
               

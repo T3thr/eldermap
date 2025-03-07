@@ -7,20 +7,35 @@ import Link from "next/link";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 
-interface AnalyticsData {
-  totalDistricts: number;
+interface AdminData {
+  email: string;
+  name: string;
+  username: string;
+}
+
+interface Province {
+  id: string;
+  name: string;
+  thaiName: string;
+  districtCount: number;
+}
+
+interface DashboardData {
   totalProvinces: number;
-  pendingRequests: number;
-  recentUpdates: { district: string; date: string }[];
+  totalAdmins: number;
+  totalDistricts: number;
+  provinces: Province[];
+  admins: AdminData[];
 }
 
 export default function AdminDashboard() {
   const { data: session, status } = useSession();
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
-    totalDistricts: 0,
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
     totalProvinces: 0,
-    pendingRequests: 0,
-    recentUpdates: [],
+    totalAdmins: 0,
+    totalDistricts: 0,
+    provinces: [],
+    admins: []
   });
   const [loading, setLoading] = useState(true);
 
@@ -31,46 +46,60 @@ export default function AdminDashboard() {
     }
   }, [status]);
 
-  // Fetch analytics data
+  // Fetch dashboard data
   useEffect(() => {
-    const fetchAnalytics = async () => {
+    const fetchDashboardData = async () => {
       try {
-        // Get districts count
-        const districtsSnapshot = await getDocs(collection(db, "districts"));
-        const totalDistricts = districtsSnapshot.size;
-
-        // Get provinces count
+        // Get provinces data
         const provincesSnapshot = await getDocs(collection(db, "provinces"));
-        const totalProvinces = provincesSnapshot.size;
-
-        // Get pending admin requests
-        const requestsSnapshot = await getDocs(collection(db, "adminRequests"));
-        const pendingRequests = requestsSnapshot.docs.filter(
-          (doc) => doc.data().status === "pending"
-        ).length;
-
-        // Mock recent updates data (in a real app, you'd fetch this from Firestore)
-        const recentUpdates = [
-          { district: "Muang Phitsanulok", date: "2024-03-05" },
-          { district: "Chat Trakan", date: "2024-03-04" },
-          { district: "Wang Thong", date: "2024-03-02" },
-        ];
-
-        setAnalyticsData({
-          totalDistricts,
-          totalProvinces,
-          pendingRequests,
-          recentUpdates,
+        const provinces: Province[] = [];
+        let totalDistricts = 0;
+        
+        // Process each province
+        for (const doc of provincesSnapshot.docs) {
+          const provinceData = doc.data();
+          
+          // Count districts in subcollection
+          const districtsSnapshot = await getDocs(collection(db, `provinces/${doc.id}/districts`));
+          const districtCount = districtsSnapshot.size;
+          totalDistricts += districtCount;
+          
+          provinces.push({
+            id: doc.id,
+            name: provinceData.name || doc.id,
+            thaiName: provinceData.thaiName || "",
+            districtCount
+          });
+        }
+        
+        // Get admins data
+        const adminsSnapshot = await getDocs(collection(db, "admins"));
+        const admins = adminsSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            email: data.email || "",
+            name: data.name || "",
+            username: data.username || ""
+          };
         });
+
+        setDashboardData({
+          totalProvinces: provincesSnapshot.size,
+          totalAdmins: adminsSnapshot.size,
+          totalDistricts,
+          provinces,
+          admins
+        });
+        
         setLoading(false);
       } catch (error) {
-        console.error("Error fetching analytics:", error);
+        console.error("Error fetching dashboard data:", error);
         setLoading(false);
       }
     };
 
     if (status === "authenticated") {
-      fetchAnalytics();
+      fetchDashboardData();
     }
   }, [status]);
 
@@ -98,22 +127,7 @@ export default function AdminDashboard() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Analytics Cards */}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="bg-card overflow-hidden rounded-lg shadow border border-accent/20">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="ml-5 w-0 flex-1">
-                  <div className="text-sm font-medium text-gray-500 truncate">
-                    Total Districts
-                  </div>
-                  <div className="mt-1 text-3xl font-semibold text-foreground">
-                    {analyticsData.totalDistricts}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div className="bg-card overflow-hidden rounded-lg shadow border border-accent/20">
             <div className="p-5">
               <div className="flex items-center">
@@ -122,7 +136,7 @@ export default function AdminDashboard() {
                     Total Provinces
                   </div>
                   <div className="mt-1 text-3xl font-semibold text-foreground">
-                    {analyticsData.totalProvinces}
+                    {dashboardData.totalProvinces}
                   </div>
                 </div>
               </div>
@@ -134,10 +148,10 @@ export default function AdminDashboard() {
               <div className="flex items-center">
                 <div className="ml-5 w-0 flex-1">
                   <div className="text-sm font-medium text-gray-500 truncate">
-                    Pending Admin Requests
+                    Total Districts
                   </div>
                   <div className="mt-1 text-3xl font-semibold text-foreground">
-                    {analyticsData.pendingRequests}
+                    {dashboardData.totalDistricts}
                   </div>
                 </div>
               </div>
@@ -149,10 +163,10 @@ export default function AdminDashboard() {
               <div className="flex items-center">
                 <div className="ml-5 w-0 flex-1">
                   <div className="text-sm font-medium text-gray-500 truncate">
-                    Total Visitors
+                    Administrator Accounts
                   </div>
                   <div className="mt-1 text-3xl font-semibold text-foreground">
-                    1,254
+                    {dashboardData.totalAdmins}
                   </div>
                 </div>
               </div>
@@ -160,69 +174,103 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Admin Actions */}
-        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Map Editor Link */}
+        <div className="mt-8">
           <div className="bg-card overflow-hidden rounded-lg shadow border border-accent/20 hover:shadow-md transition-shadow">
             <Link href="/admin/map-editor" className="block p-6">
               <h3 className="text-lg font-medium text-foreground">Map Editor</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Edit district maps, update colors, and manage visual elements
-              </p>
-            </Link>
-          </div>
-
-          <div className="bg-card overflow-hidden rounded-lg shadow border border-accent/20 hover:shadow-md transition-shadow">
-            <Link href="/admin/content-editor" className="block p-6">
-              <h3 className="text-lg font-medium text-foreground">Content Manager</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Update historical data, events, and landmarks for each district
-              </p>
-            </Link>
-          </div>
-
-          <div className="bg-card overflow-hidden rounded-lg shadow border border-accent/20 hover:shadow-md transition-shadow">
-            <Link href="/admin/user-requests" className="block p-6">
-              <h3 className="text-lg font-medium text-foreground">
-                Manage Access Requests
-              </h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Review and approve contributor applications
+                Edit district maps, update historical data, and manage visual elements for the interactive history platform
               </p>
             </Link>
           </div>
         </div>
 
-        {/* Recent Activities */}
+        {/* Provinces List */}
         <div className="mt-8">
-          <h2 className="text-lg font-medium text-foreground mb-4">Recent Updates</h2>
+          <h2 className="text-lg font-medium text-foreground mb-4">Province Data</h2>
           <div className="bg-card overflow-hidden shadow rounded-lg border border-accent/20">
-            <div className="px-4 py-5 sm:p-6">
-              <div className="flow-root">
-                <ul className="-my-5 divide-y divide-gray-200">
-                  {analyticsData.recentUpdates.map((update, index) => (
-                    <li key={index} className="py-4">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">
-                            {update.district}
-                          </p>
-                          <p className="text-sm text-muted-foreground truncate">
-                            Updated on {update.date}
-                          </p>
-                        </div>
-                        <div>
-                          <Link
-                            href={`/admin/districts/${update.district.toLowerCase().replace(/\s+/g, "-")}`}
-                            className="inline-flex items-center shadow-sm px-2.5 py-0.5 border border-primary/20 text-sm leading-5 font-medium rounded-full text-primary/80 bg-primary/5 hover:bg-primary/10"
-                          >
-                            View
-                          </Link>
-                        </div>
-                      </div>
-                    </li>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Thai Name
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      District Count
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {dashboardData.provinces.map((province) => (
+                    <tr key={province.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {province.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {province.thaiName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {province.districtCount}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <Link
+                          href={`/admin/map-editor/${province.id}`}
+                          className="inline-flex items-center shadow-sm px-2.5 py-0.5 border border-primary/20 text-sm leading-5 font-medium rounded-full text-primary/80 bg-primary/5 hover:bg-primary/10"
+                        >
+                          Edit
+                        </Link>
+                      </td>
+                    </tr>
                   ))}
-                </ul>
-              </div>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Admins List */}
+        <div className="mt-8">
+          <h2 className="text-lg font-medium text-foreground mb-4">Administrator Accounts</h2>
+          <div className="bg-card overflow-hidden shadow rounded-lg border border-accent/20">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Username
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Email
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {dashboardData.admins.map((admin, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {admin.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {admin.username}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {admin.email}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

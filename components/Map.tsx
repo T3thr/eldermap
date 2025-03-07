@@ -28,6 +28,7 @@ export default function Map({
   const [showLegend, setShowLegend] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
   const [showCenterDot, setShowCenterDot] = useState(true);
+  const [touchDistance, setTouchDistance] = useState<number | null>(null);
 
   useEffect(() => {
     setMapScale(1);
@@ -64,9 +65,16 @@ export default function Map({
       const touch1 = e.touches[0];
       const touch2 = e.touches[1];
       const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
-      setMapScale(Math.max(0.5, Math.min(3.5, distance / 100)));
+
+      if (touchDistance === null) {
+        setTouchDistance(distance);
+      } else {
+        const scale = distance / touchDistance;
+        setMapScale((prev) => Math.max(0.5, Math.min(3.5, prev * scale)));
+        setTouchDistance(distance);
+      }
     }
-  }, []);
+  }, [touchDistance]);
 
   const getDistrictColor = (district: District) =>
     isGlobalView && selectedPeriod
@@ -201,7 +209,7 @@ export default function Map({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onTouchStart={handleMouseDown}
-        onTouchMove={handleMouseMove}
+        onTouchMove={handleTouchMove} // Use handleTouchMove for touch-based zoom
         onTouchEnd={handleMouseUp}
         onWheel={handleWheel}
         style={{ cursor: isDragging ? "grabbing" : "grab" }}

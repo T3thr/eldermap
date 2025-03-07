@@ -3,12 +3,14 @@
 
 import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
+import { useRouter } from "next/router"; // Import useRouter
 import { FaUser, FaSignOutAlt, FaAngleRight } from "react-icons/fa";
 
 export default function FloatingSidebar() {
   const { data: session, status } = useSession();
   const [isOpen, setIsOpen] = useState(false);
   const [isActive, setIsActive] = useState(true);
+  const router = useRouter(); // Initialize useRouter
 
   // Only render for authenticated admins
   const isAdmin = session?.user?.role === "admin";
@@ -58,9 +60,13 @@ export default function FloatingSidebar() {
             <FaAngleRight className="text-lg" />
           </button>
           {/* Profile */}
-          <div className="px-3 py-2 text-sm text-muted-foreground truncate">
-            {session.user.username}
-          </div>
+          <button
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-accent/10 transition-colors"
+            onClick={() => router.push("/admin/dashboard")} // Navigate to /admin/dashboard
+          >
+            <FaUser className="text-sm" />
+            <span className="truncate">{session.user.username}</span>
+          </button>
           {/* Sign Out */}
           <button
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent/10 transition-colors"
