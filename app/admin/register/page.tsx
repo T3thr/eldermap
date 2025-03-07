@@ -94,7 +94,7 @@ export default function AdminRegister() {
               </div>
               <h3 className="text-lg font-medium text-foreground">Request Submitted Successfully!</h3>
               <p className="text-sm text-muted-foreground">
-                Thank you for your interest in contributing to our platform. We'll review your application and contact you soon.
+                Thank you for your interest in contributing to our platform. We&apos;ll review your application and contact you soon.
               </p>
               <p className="text-sm text-muted-foreground">
                 Redirecting to login page...

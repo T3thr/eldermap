@@ -43,7 +43,7 @@ const About = ({ onClose }: AboutProps) => {
             About Thai Provinces
           </h3>
           <p className="text-foreground/80 dark:text-gray-300">
-            Explore the rich cultural heritage and history of Thailand's diverse provinces through our interactive platform.
+            Explore the rich cultural heritage and history of Thailand&apos;s diverse provinces through our interactive platform.
           </p>
         </motion.div>
         
@@ -60,7 +60,7 @@ const About = ({ onClose }: AboutProps) => {
               Our Mission
             </h4>
             <p className="text-sm text-foreground/80 dark:text-gray-300">
-              To make Thailand's historical journey accessible, interactive, and engaging for everyone through cutting-edge web technology.
+              To make Thailand&apos;s historical journey accessible, interactive, and engaging for everyone through cutting-edge web technology.
             </p>
           </motion.div>
           
@@ -92,7 +92,7 @@ const About = ({ onClose }: AboutProps) => {
               Who We Are
             </h4>
             <p className="text-sm text-foreground/80 dark:text-gray-300">
-              A team of passionate historians, developers, and designers committed to preserving and sharing Thailand's cultural heritage through modern technology.
+              A team of passionate historians, developers, and designers committed to preserving and sharing Thailand&apos;s cultural heritage through modern technology.
             </p>
           </motion.div>
         </div>

@@ -221,7 +221,7 @@ export default function Home() {
             Thai Temporal Portal
           </h1>
           <p className="text-base md:text-lg lg:text-xl text-foreground/70 mt-3 font-thai max-w-2xl mx-auto">
-            Traverse Thailand's Chronological Nexus
+            Traverse Thailand&apos;s Chronological Nexus
           </p>
         </motion.header>
 
