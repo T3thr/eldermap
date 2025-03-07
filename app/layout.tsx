@@ -18,27 +18,36 @@ const geistMono = Geist_Mono({
   weight: ["400", "700"],
 });
 
+// Global metadata base URL for Open Graph, Twitter, etc.
+export const metadataBase = new URL("https://eldermap.vercel.app");
+
+// Static Metadata Configuration
 export const metadata: Metadata = {
   title: "Thai Provinces Interactive History Platform",
   description: "Explore the rich history of Thai provinces with dynamic, interactive web technology.",
-  keywords: ["Thai history", "interactive map", "Phitsanulok", "Next.js", "Tailwind CSS", "provinces", "จังหวัด"],
+  keywords: "Thai history, interactive map, Phitsanulok, Next.js, Tailwind CSS, provinces, จังหวัด",
+  authors: [{ name: "eldermap_team" }],
   openGraph: {
     title: "Thai Provinces Interactive History Platform",
     description: "Discover the past and present of Thai provinces through an interactive digital experience.",
-    url: "https://eldermap.vercel.app",
+    siteName: "Thai Provinces History Platform",
+    locale: "th_TH",
     type: "website",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Thai Provinces History Platform",
-      },
-    ],
+    url: "https://eldermap.vercel.app",
   },
-  icons: {
-    icon: "/favicon.ico",
+  twitter: {
+    card: "summary_large_image",
+    title: "Thai Provinces Interactive History Platform",
+    description: "Explore the rich history of Thai provinces with dynamic, interactive web technology.",
   },
+  robots: "index, follow",
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -47,7 +56,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {/* Wrap the entire layout with the GlobalProvider */}
         <GlobalProvider>

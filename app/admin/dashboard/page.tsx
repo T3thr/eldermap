@@ -2,10 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase-config";
 
 interface AdminData {
   email: string;
@@ -35,62 +32,20 @@ export default function AdminDashboard() {
     totalAdmins: 0,
     totalDistricts: 0,
     provinces: [],
-    admins: []
+    admins: [],
   });
   const [loading, setLoading] = useState(true);
 
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      redirect("/admin/login");
-    }
-  }, [status]);
-
-  // Fetch dashboard data
+  // Fetch dashboard data from API
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Get provinces data
-        const provincesSnapshot = await getDocs(collection(db, "provinces"));
-        const provinces: Province[] = [];
-        let totalDistricts = 0;
-        
-        // Process each province
-        for (const doc of provincesSnapshot.docs) {
-          const provinceData = doc.data();
-          
-          // Count districts in subcollection
-          const districtsSnapshot = await getDocs(collection(db, `provinces/${doc.id}/districts`));
-          const districtCount = districtsSnapshot.size;
-          totalDistricts += districtCount;
-          
-          provinces.push({
-            id: doc.id,
-            name: provinceData.name || doc.id,
-            thaiName: provinceData.thaiName || "",
-            districtCount
-          });
+        const response = await fetch("/api/dashboard");
+        if (!response.ok) {
+          throw new Error("Failed to fetch dashboard data");
         }
-        
-        // Get admins data
-        const adminsSnapshot = await getDocs(collection(db, "admins"));
-        const admins = adminsSnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            email: data.email || "",
-            name: data.name || "",
-            username: data.username || ""
-          };
-        });
-
-        setDashboardData({
-          totalProvinces: provincesSnapshot.size,
-          totalAdmins: adminsSnapshot.size,
-          totalDistricts,
-          provinces,
-          admins
-        });
-        
+        const data: DashboardData = await response.json();
+        setDashboardData(data);
         setLoading(false);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -180,7 +135,8 @@ export default function AdminDashboard() {
             <Link href="/admin/map-editor" className="block p-6">
               <h3 className="text-lg font-medium text-foreground">Map Editor</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Edit district maps, update historical data, and manage visual elements for the interactive history platform
+                Edit district maps, update historical data, and manage visual
+                elements for the interactive history platform
               </p>
             </Link>
           </div>
@@ -188,22 +144,36 @@ export default function AdminDashboard() {
 
         {/* Provinces List */}
         <div className="mt-8">
-          <h2 className="text-lg font-medium text-foreground mb-4">Province Data</h2>
+          <h2 className="text-lg font-medium text-foreground mb-4">
+            Province Data
+          </h2>
           <div className="bg-card overflow-hidden shadow rounded-lg border border-accent/20">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
                       Name
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
                       Thai Name
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
                       District Count
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
                       Actions
                     </th>
                   </tr>
@@ -222,7 +192,7 @@ export default function AdminDashboard() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <Link
-                          href={`/admin/map-editor/${province.id}`}
+                          href={`/admin/map-editor`}
                           className="inline-flex items-center shadow-sm px-2.5 py-0.5 border border-primary/20 text-sm leading-5 font-medium rounded-full text-primary/80 bg-primary/5 hover:bg-primary/10"
                         >
                           Edit
@@ -238,19 +208,30 @@ export default function AdminDashboard() {
 
         {/* Admins List */}
         <div className="mt-8">
-          <h2 className="text-lg font-medium text-foreground mb-4">Administrator Accounts</h2>
+          <h2 className="text-lg font-medium text-foreground mb-4">
+            Administrator Accounts
+          </h2>
           <div className="bg-card overflow-hidden shadow rounded-lg border border-accent/20">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
                       Name
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
                       Username
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
                       Email
                     </th>
                   </tr>

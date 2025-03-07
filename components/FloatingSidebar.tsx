@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/router"; // Import useRouter
+import { useRouter } from "next/navigation"; // Import useRouter
 import { FaUser, FaSignOutAlt, FaAngleRight } from "react-icons/fa";
 
 export default function FloatingSidebar() {

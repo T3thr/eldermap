@@ -1,4 +1,5 @@
 // lib/firebase-config.ts
+'use client'
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, collection, doc, getDocs, onSnapshot } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"; // Add Firebase Storage
@@ -8,7 +9,7 @@ import { District, Province } from "./districts";
 import { provinces as staticProvinces } from "./provinces"; // Fallback static data
 
 // Firebase configuration
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,

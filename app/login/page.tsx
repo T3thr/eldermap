@@ -1,8 +1,8 @@
+// app/login/page.tsx
 "use client";
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function AdminLogin() {
@@ -12,7 +12,6 @@ export default function AdminLogin() {
   const [password, setPassword] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
-  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -48,10 +47,8 @@ export default function AdminLogin() {
         return;
       }
 
-      if (result?.ok) {
-        router.push("/admin/dashboard");
-        router.refresh();
-      }
+      // Redirect to dashboard or another page after successful login
+      window.location.href = "/admin/dashboard"; // Optional manual redirect
     } catch (err) {
       console.error("Login error:", err);
       setError("An unexpected error occurred. Please try again later.");

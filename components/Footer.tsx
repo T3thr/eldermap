@@ -28,7 +28,7 @@ export default function Footer() {
                 {[
                   { name: "Home", href: "/" },
                   { name: "About", href: "#", action: () => setAboutOpen(true) },
-                  { name: "Contact", href: "/contact" }
+                  { name: "Contact", href: "/" }
                 ].map((item) => (
                   <li key={item.name}>
                     <Link

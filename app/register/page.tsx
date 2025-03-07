@@ -3,8 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { doc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase-config";
 
 export default function AdminRegister() {
   const [formData, setFormData] = useState({
@@ -26,50 +24,51 @@ export default function AdminRegister() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    try {
-      // Store the admin request in Firestore
-      const requestRef = doc(db, "adminRequests", formData.username);
-      await setDoc(requestRef, {
-        fullName: formData.fullName,
-        email: formData.email,
-        username: formData.username,
-        // Note: In a real app, you'd hash the password on the server
-        // This is just for demo purposes
-        password: formData.password, 
-        institution: formData.institution,
-        researchBackground: formData.researchBackground,
-        contributionPlan: formData.contributionPlan,
-        status: "pending",
-        requestDate: new Date().toISOString(),
+    fetch('/api/admin/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(formData),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Failed to submit request');
+        }
+        return response.json();
+      })
+      .then((data) => {
+        if (data.error) {
+          setError(data.error);
+        } else {
+          setSuccess(true);
+          setLoading(false);
+          setFormData({
+            fullName: "",
+            email: "",
+            username: "",
+            password: "",
+            institution: "",
+            researchBackground: "",
+            contributionPlan: "",
+          });
+          setTimeout(() => {
+            router.push("/admin/login");
+          }, 3000);
+        }
+      })
+      .catch((err) => {
+        console.error("Registration error:", err);
+        setError("An error occurred while submitting your request");
+      })
+      .finally(() => {
+        setLoading(false);
       });
-
-      setSuccess(true);
-      setLoading(false);
-      // Reset form data
-      setFormData({
-        fullName: "",
-        email: "",
-        username: "",
-        password: "",
-        institution: "",
-        researchBackground: "",
-        contributionPlan: "",
-      });
-      
-      // Redirect after 3 seconds
-      setTimeout(() => {
-        router.push("/admin/login");
-      }, 3000);
-    } catch (err) {
-      console.error("Registration error:", err);
-      setError("An error occurred while submitting your request");
-      setLoading(false);
-    }
   };
 
   return (

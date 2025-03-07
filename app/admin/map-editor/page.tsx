@@ -1,11 +1,8 @@
+// app/admin/map-editor/page.tsx
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
-import { collection, getDocs, updateDoc, doc, setDoc, addDoc, onSnapshot } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '@/lib/firebase-config';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, MapPin, Grid, Save, Plus, Trash2, Upload, Edit, X, Undo2, Redo2 } from 'lucide-react';
 import { District, Province, HistoricalPeriod, Media, CollabData } from '@/lib/districts';
@@ -58,18 +55,10 @@ export default function MapEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const loadHistoryFromLocalStorage = (): EditAction[] => {
-    const history = localStorage.getItem('mapEditorHistory');
-    return history ? JSON.parse(history) : [];
-  };
+  // Initialize history and historyIndex with defaults; load from localStorage in useEffect
+  const [history, setHistory] = useState<EditAction[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
 
-  const loadHistoryIndexFromLocalStorage = (): number => {
-    const index = localStorage.getItem('mapEditorHistoryIndex');
-    return index ? parseInt(index, 10) : -1;
-  };
-  
-  const [history, setHistory] = useState<EditAction[]>(loadHistoryFromLocalStorage());
-  const [historyIndex, setHistoryIndex] = useState(loadHistoryIndexFromLocalStorage());
   const [activeTab, setActiveTab] = useState<'image' | 'video' | 'text'>('image');
   const [mapFile, setMapFile] = useState<FileUpload>({ file: null, previewUrl: null, type: 'map' });
   const [mediaFile, setMediaFile] = useState<FileUpload>({ file: null, previewUrl: null, type: 'image' });
@@ -78,27 +67,29 @@ export default function MapEditorPage() {
   const [mediaImageUrlInput, setMediaImageUrlInput] = useState<string>('');
   const actionIdRef = useRef(0);
 
+  // Load history from localStorage only on the client side
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      redirect('/admin/login');
-    }
-  }, [status]);
+    const loadHistoryFromLocalStorage = (): EditAction[] => {
+      const history = localStorage.getItem('mapEditorHistory');
+      return history ? JSON.parse(history) : [];
+    };
 
+    const loadHistoryIndexFromLocalStorage = (): number => {
+      const index = localStorage.getItem('mapEditorHistoryIndex');
+      return index ? parseInt(index, 10) : -1;
+    };
+
+    setHistory(loadHistoryFromLocalStorage());
+    setHistoryIndex(loadHistoryIndexFromLocalStorage());
+  }, []);
+
+  // Fetch provinces data
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'provinces'), async (snapshot) => {
+    const fetchProvinces = async () => {
       setLoading(true);
       try {
-        const provincesData: ProvinceData[] = await Promise.all(
-          snapshot.docs.map(async (doc) => {
-            const data = doc.data() as ProvinceData;
-            const districtsSnapshot = await getDocs(collection(db, `provinces/${doc.id}/districts`));
-            const districtsData = districtsSnapshot.docs.map((d) => ({
-              ...d.data(),
-              id: d.id,
-            })) as DistrictData[];
-            return { ...data, districts: districtsData, id: doc.id };
-          })
-        );
+        const response = await fetch('/api/map-editor');
+        const provincesData = await response.json();
         setProvinces(provincesData);
         if (provincesData.length > 0 && !selectedProvince) {
           setSelectedProvince(provincesData[0]);
@@ -113,12 +104,8 @@ export default function MapEditorPage() {
       } finally {
         setLoading(false);
       }
-    }, (err) => {
-      setError('Realtime update failed.');
-      console.error(err);
-    });
-
-    return () => unsubscribe();
+    };
+    fetchProvinces();
   }, []);
 
   const handleMapMouseDown = useCallback((e: React.MouseEvent) => {
@@ -297,37 +284,87 @@ export default function MapEditorPage() {
   const saveChanges = async () => {
     if (!selectedProvince) return;
     try {
-      for (let i = 0; i <= historyIndex; i++) {
-        const action = history[i];
-        if (action.type === 'updateDistrict' && selectedProvince.districts.find((d) => d.id === action.data.id)) {
-          const districtRef = doc(db, `provinces/${selectedProvince.id}/districts`, action.data.id);
-          await updateDoc(districtRef, action.data);
-        } else if (action.type === 'updateProvince' && provinces.find((p) => p.id === action.data.id)) {
-          const provinceRef = doc(db, 'provinces', action.data.id);
-          await updateDoc(provinceRef, { name: action.data.name, thaiName: action.data.thaiName });
-        } else if (action.type === 'addProvince' && !provinces.find((p) => p.id === action.data.id)) {
-          const provinceRef = doc(db, 'provinces', action.data.id);
-          await setDoc(provinceRef, action.data);
-        } else if (action.type === 'addDistrict' && selectedProvince.districts.find((d) => d.id === action.data.id)) {
-          const districtRef = collection(db, `provinces/${selectedProvince.id}/districts`);
-          await addDoc(districtRef, action.data);
+      for (const action of history.slice(0, historyIndex + 1)) {
+        if (action.type === 'updateDistrict') {
+          await fetch('/api/map-editor', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'district',
+              id: action.data.id,
+              provinceId: selectedProvince.id,
+              data: action.data
+            })
+          });
+        } else if (action.type === 'updateProvince') {
+          await fetch('/api/map-editor', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'province',
+              id: action.data.id,
+              data: action.data
+            })
+          });
+        } else if (action.type === 'addProvince') {
+          await fetch('/api/map-editor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'province',
+              data: action.data
+            })
+          });
+        } else if (action.type === 'addDistrict') {
+          await fetch('/api/map-editor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'district',
+              data: { ...action.data, provinceId: selectedProvince.id }
+            })
+          });
         } else if (action.type === 'uploadMedia' && selectedDistrict) {
-          const districtRef = doc(db, `provinces/${selectedProvince.id}/districts`, selectedDistrict.id);
-          await updateDoc(districtRef, { historicalPeriods: selectedDistrict.historicalPeriods });
+          const response = await fetch('/api/map-editor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'media',
+              data: {
+                provinceId: selectedProvince.id,
+                districtId: selectedDistrict.id,
+                file: action.data.file,
+                periodIndex: selectedDistrict.historicalPeriods.findIndex(p => p.era === action.data.era)
+              }
+            })
+          });
+          const { url } = await response.json();
+          action.data.url = url;
         } else if (action.type === 'uploadMap' && selectedDistrict) {
-          const districtRef = doc(db, `provinces/${selectedProvince.id}/districts`, selectedDistrict.id);
-          const mapImageUrl = mapImageUrlInput || selectedDistrict.mapImageUrl;
-          await updateDoc(districtRef, { mapImageUrl });
+          const response = await fetch('/api/map-editor', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'mapImage',
+              data: {
+                provinceId: selectedProvince.id,
+                districtId: selectedDistrict.id,
+                file: action.data.file || { url: mapImageUrlInput }
+              }
+            })
+          });
+          const { url } = await response.json();
+          action.data.mapImageUrl = url;
         }
       }
-      setSuccess('Changes saved to database successfully!');
+      setSuccess('Changes saved successfully!');
       setHistory([]);
       setHistoryIndex(-1);
       saveHistoryToLocalStorage([], -1);
       setMapImageUrlInput('');
       setMediaImageUrlInput('');
     } catch (err) {
-      setError('Failed to save changes to database.');
+      setError('Failed to save changes.');
       console.error(err);
     }
   };
@@ -360,34 +397,81 @@ export default function MapEditorPage() {
     setSelectedDistrict(updatedDistrict);
   };
 
-  const uploadMapImage = () => {
+  const uploadMapImage = async () => {
     if (!selectedProvince || !selectedDistrict || !mapFile.file) return;
     const previousData = { ...selectedDistrict };
-    recordHistory('uploadMap', { ...selectedDistrict, mapImageUrl: mapFile.previewUrl }, previousData);
-    setMapFile({ file: null, previewUrl: null, type: 'map' });
+    try {
+      const response = await fetch('/api/map-editor', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'mapImage',
+          data: {
+            provinceId: selectedProvince.id,
+            districtId: selectedDistrict.id,
+            file: {
+              name: mapFile.file.name,
+              type: mapFile.file.type,
+              buffer: await mapFile.file.arrayBuffer()
+            }
+          }
+        })
+      });
+      const { url } = await response.json();
+      recordHistory('uploadMap', { ...selectedDistrict, mapImageUrl: url }, previousData);
+      setMapFile({ file: null, previewUrl: null, type: 'map' });
+    } catch (err) {
+      setError('Failed to upload map image.');
+      console.error(err);
+    }
   };
 
-  const uploadMedia = (district: DistrictData, periodIndex: number) => {
+  const uploadMedia = async (district: DistrictData, periodIndex: number) => {
     if (!selectedProvince || !mediaFile.file) return;
     const previousData = { ...district };
-    const updatedPeriods = [...(district.historicalPeriods || [])];
-    const newMedia: Media = {
-      type: mediaFile.type,
-      url: mediaFile.previewUrl || '',
-      description: '',
-    };
-    updatedPeriods[periodIndex] = {
-      ...updatedPeriods[periodIndex],
-      media: [...(updatedPeriods[periodIndex].media || []), newMedia],
-    };
-    const updatedDistrict = { ...district, historicalPeriods: updatedPeriods };
-    recordHistory('uploadMedia', { ...updatedDistrict, era: updatedPeriods[periodIndex].era }, previousData);
-    const updatedDistricts = selectedProvince?.districts.map((d) =>
-      d.id === district.id ? updatedDistrict : d
-    ) || [];
-    setSelectedProvince({ ...selectedProvince!, districts: updatedDistricts });
-    setSelectedDistrict(updatedDistrict);
-    setMediaFile({ file: null, previewUrl: null, type: activeTab });
+    try {
+      const response = await fetch('/api/map-editor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'media',
+          data: {
+            provinceId: selectedProvince.id,
+            districtId: district.id,
+            file: {
+              name: mediaFile.file.name,
+              type: mediaFile.file.type,
+              buffer: await mediaFile.file.arrayBuffer()
+            },
+            periodIndex
+          }
+        })
+      });
+      const { url } = await response.json();
+      
+      const updatedPeriods = [...(district.historicalPeriods || [])];
+      const newMedia: Media = {
+        type: mediaFile.type,
+        url,
+        description: '',
+      };
+      updatedPeriods[periodIndex] = {
+        ...updatedPeriods[periodIndex],
+        media: [...(updatedPeriods[periodIndex].media || []), newMedia],
+      };
+      const updatedDistrict = { ...district, historicalPeriods: updatedPeriods };
+      recordHistory('uploadMedia', { ...updatedDistrict, era: updatedPeriods[periodIndex].era }, previousData);
+      
+      const updatedDistricts = selectedProvince.districts.map((d) =>
+        d.id === district.id ? updatedDistrict : d
+      );
+      setSelectedProvince({ ...selectedProvince, districts: updatedDistricts });
+      setSelectedDistrict(updatedDistrict);
+      setMediaFile({ file: null, previewUrl: null, type: activeTab });
+    } catch (err) {
+      setError('Failed to upload media.');
+      console.error(err);
+    }
   };
 
   const updateDistrictData = (district: DistrictData, updatedData: Partial<DistrictData>) => {
@@ -1242,5 +1326,3 @@ function hexToRgba(hex: string, alpha: number): string {
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
-
-const padding = Array(800).fill('padding line to ensure code length exceeds 1000 lines').join('\n');
