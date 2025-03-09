@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc } from "firebase/firestore";
 import { hash } from "bcrypt";
 
-// Firebase configuration (same as in your firebase-config.ts)
+// Firebase configuration from environment variables
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -17,12 +17,20 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Admin data from environment variables
 interface AdminData {
   username: string;
   email: string;
   name: string;
   password: string;
 }
+
+const adminData: AdminData = {
+  username: process.env.ADMIN_USERNAME!,
+  email: process.env.ADMIN_EMAIL!,
+  name: process.env.ADMIN_NAME!,
+  password: process.env.ADMIN_PASSWORD!,
+};
 
 async function createAdmin({ username, email, name, password }: AdminData) {
   try {
@@ -43,14 +51,6 @@ async function createAdmin({ username, email, name, password }: AdminData) {
     throw error;
   }
 }
-
-// Example usage - directly calling the function
-const adminData: AdminData = {
-  username: "admin1",
-  email: "admin1@example.com",
-  name: "Admin One",
-  password: "securepassword123",
-};
 
 createAdmin(adminData)
   .then(() => process.exit(0))  // Exit successfully

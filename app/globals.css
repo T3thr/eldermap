@@ -17,10 +17,6 @@
   --card: #f8f9fa;         /* Light card background */
   --glass-bg: #ffffffcc;    /* rgba(255, 255, 255, 0.8) */
   --glass-border: #46040433; /* rgba(255, 255, 255, 0.2) */
-  
-  /* Theme transition settings */
-  --theme-transition-duration: 500ms;
-  --theme-transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Dark Theme Variables */
@@ -35,11 +31,6 @@ html[class="dark"] {
   --glass-border: #00d4ff33; /* #00d4ff with 20% opacity */
 }
 
-/* Apply transitions to html and body for smoother theme changes */
-html {
-  transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
-}
-
 /* Body Styles */
 body {
   color: var(--foreground);
@@ -48,21 +39,7 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: 
-    color var(--theme-transition-duration) var(--theme-transition-timing),
-    background var(--theme-transition-duration) var(--theme-transition-timing),
-    background-image var(--theme-transition-duration) var(--theme-transition-timing);
-}
-
-/* Theme transitioning class for global animations */
-html.theme-transitioning * {
-  transition: 
-    background-color var(--theme-transition-duration) var(--theme-transition-timing),
-    border-color var(--theme-transition-duration) var(--theme-transition-timing),
-    color var(--theme-transition-duration) var(--theme-transition-timing),
-    fill var(--theme-transition-duration) var(--theme-transition-timing),
-    stroke var(--theme-transition-duration) var(--theme-transition-timing),
-    box-shadow var(--theme-transition-duration) var(--theme-transition-timing) !important;
+  transition: all 0.3s ease-in-out;
 }
 
 /* Base Layer for Typography */
@@ -70,16 +47,7 @@ html.theme-transitioning * {
   h1, h2, h3, h4, h5, h6 {
     font-weight: 700;
     color: var(--primary);
-    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  
-  /* Common elements that should transition smoothly */
-  a, button, input, select, textarea {
-    transition: 
-      color var(--theme-transition-duration) var(--theme-transition-timing),
-      background-color var(--theme-transition-duration) var(--theme-transition-timing),
-      border-color var(--theme-transition-duration) var(--theme-transition-timing),
-      box-shadow var(--theme-transition-duration) var(--theme-transition-timing);
+    transition: color 0.3s ease;
   }
 }
 
@@ -90,10 +58,7 @@ html.theme-transitioning * {
   border: 1px solid var(--glass-border);
   border-radius: 1rem;
   box-shadow: 0 4px 30px #0000001a; /* rgba(0, 0, 0, 0.1) */
-  transition: 
-    background var(--theme-transition-duration) var(--theme-transition-timing),
-    border-color var(--theme-transition-duration) var(--theme-transition-timing),
-    box-shadow var(--theme-transition-duration) var(--theme-transition-timing);
+  transition: all 0.3s ease-in-out;
 }
 
 /* Custom Animations */
@@ -137,78 +102,26 @@ html.theme-transitioning * {
     .max-w-5xl { max-width: 100%; }
   }
 
-  /* Color Utility Classes with transitions */
-  .bg-background { 
-    background-color: var(--background);
-    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  .text-background { 
-    color: var(--background);
-    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  .bg-foreground { 
-    background-color: var(--foreground);
-    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  .text-foreground { 
-    color: var(--foreground);
-    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  .bg-primary { 
-    background-color: var(--primary);
-    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  .text-primary { 
-    color: var(--primary);
-    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  .bg-secondary { 
-    background-color: var(--secondary);
-    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  .text-secondary { 
-    color: var(--secondary);
-    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  .bg-accent { 
-    background-color: var(--accent);
-    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  .text-accent { 
-    color: var(--accent);
-    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  .bg-card { 
-    background-color: var(--card);
-    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  .text-card { 
-    color: var(--card);
-    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  .bg-glass-bg { 
-    background-color: var(--glass-bg);
-    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  .text-glass-bg { 
-    color: var(--glass-bg);
-    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  .border-glass-border { 
-    border-color: var(--glass-border);
-    transition: border-color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
-  .text-glass-border { 
-    color: var(--glass-border);
-    transition: color var(--theme-transition-duration) var(--theme-transition-timing);
-  }
+  /* Color Utility Classes */
+  .bg-background { background-color: var(--background); }
+  .text-background { color: var(--background); }
+  .bg-foreground { background-color: var(--foreground); }
+  .text-foreground { color: var(--foreground); }
+  .bg-primary { background-color: var(--primary); }
+  .text-primary { color: var(--primary); }
+  .bg-secondary { background-color: var(--secondary); }
+  .text-secondary { color: var(--secondary); }
+  .bg-accent { background-color: var(--accent); }
+  .text-accent { color: var(--accent); }
+  .bg-card { background-color: var(--card); }
+  .text-card { color: var(--card); }
+  .bg-glass-bg { background-color: var(--glass-bg); }
+  .text-glass-bg { color: var(--glass-bg); }
+  .border-glass-border { border-color: var(--glass-border); }
+  .text-glass-border { color: var(--glass-border); }
 }
 
 /* SVG Styling */
-svg {
-  transition: all var(--theme-transition-duration) var(--theme-transition-timing);
-}
-
 svg path {
   @apply transition-all duration-300;
 }
@@ -220,7 +133,6 @@ svg path:hover {
 /* Text Shadow Utility */
 .text-shadow {
   text-shadow: 1px 1px 2px #00000080; /* rgba(0, 0, 0, 0.5) */
-  transition: text-shadow var(--theme-transition-duration) var(--theme-transition-timing);
 }
 
 /* Ensure Light Theme Application */
