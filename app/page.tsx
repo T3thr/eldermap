@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase-config";
 import Map from "@/components/Map";
@@ -8,7 +8,7 @@ import PeriodSelector from "@/components/PeriodSelector";
 import DistrictInfo from "@/components/DistrictInfo";
 import { Province, District, HistoricalPeriod } from "@/lib/districts";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronUp, Maximize, Minimize, CheckCircle, Circle } from "lucide-react";
+import { ChevronDown, ChevronUp, Maximize, Minimize, CheckCircle, Circle, Search } from "lucide-react";
 
 export default function Home() {
   const [provinces, setProvinces] = useState<Province[]>([]);
@@ -21,27 +21,28 @@ export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMapFullScreen, setIsMapFullScreen] = useState(false);
   const [provinceSearch, setProvinceSearch] = useState("");
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
 
-  // Load saved state from localStorage when component mounts
+  // Load initial state from localStorage
   useEffect(() => {
-    const savedState = localStorage.getItem('thaiTemporalPortalState');
+    const savedState = localStorage.getItem("thaiTemporalPortalState");
     if (savedState) {
       try {
-        const parsedState = JSON.parse(savedState);
-        
-        // We'll apply these after data is fetched
-        if (parsedState.provinceId) {
-          setProvinceSearch(parsedState.provinceSearch || "");
-          setIsGlobalView(parsedState.isGlobalView || false);
-          setIsSidebarOpen(parsedState.isSidebarOpen || false);
-        }
+        const { provinceId, provinceSearch, isGlobalView, isSidebarOpen } = JSON.parse(savedState);
+        setProvinceSearch(provinceSearch || "");
+        setIsGlobalView(isGlobalView || false);
+        setIsSidebarOpen(isSidebarOpen || false);
       } catch (error) {
         console.error("Error parsing saved state:", error);
       }
     }
   }, []);
 
+  // Fetch provinces and apply saved state
   const fetchProvinces = useCallback(async () => {
+    setIsLoading(true);
     try {
       const provincesSnapshot = await getDocs(collection(db, "provinces"));
       const provincesData: Province[] = [];
@@ -70,69 +71,45 @@ export default function Home() {
         });
       }
 
-      setAllPeriods(periodsData);
       setProvinces(provincesData);
-      
-      // Apply saved state after data is fetched
-      const savedState = localStorage.getItem('thaiTemporalPortalState');
+      setAllPeriods(periodsData);
+
+      const savedState = localStorage.getItem("thaiTemporalPortalState");
       if (savedState) {
-        try {
-          const parsedState = JSON.parse(savedState);
-          
-          // Find the saved province
-          if (parsedState.provinceId) {
-            const savedProvince = provincesData.find(p => p.id === parsedState.provinceId);
-            if (savedProvince) {
-              setSelectedProvince(savedProvince);
-              
-              // Restore selected districts
-              if (parsedState.selectedDistrictIds && Array.isArray(parsedState.selectedDistrictIds)) {
-                const savedDistricts = savedProvince.districts.filter(
-                  district => parsedState.selectedDistrictIds.includes(district.id)
-                );
-                setSelectedDistricts(savedDistricts);
-              }
-              
-              // Restore selected period
-              if (parsedState.selectedPeriodEra) {
-                const savedPeriod = periodsData.find(p => p.era === parsedState.selectedPeriodEra);
-                if (savedPeriod) {
-                  setSelectedPeriod(savedPeriod);
-                }
-              }
-            } else {
-              setSelectedProvince(provincesData[0] || null);
-            }
-          } else {
-            setSelectedProvince(provincesData[0] || null);
-          }
-        } catch (error) {
-          console.error("Error applying saved state:", error);
-          setSelectedProvince(provincesData[0] || null);
+        const { provinceId, selectedDistrictIds, selectedPeriodEra } = JSON.parse(savedState);
+        const province = provincesData.find((p) => p.id === provinceId) || provincesData[0] || null;
+        setSelectedProvince(province);
+
+        if (province && selectedDistrictIds?.length) {
+          setSelectedDistricts(province.districts.filter((d) => selectedDistrictIds.includes(d.id)));
+        }
+        if (selectedPeriodEra) {
+          setSelectedPeriod(periodsData.find((p) => p.era === selectedPeriodEra) || null);
         }
       } else {
         setSelectedProvince(provincesData[0] || null);
       }
     } catch (error) {
       console.error("Error fetching provinces:", error);
-      setSelectedProvince(provinces[0] || null);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Save state to localStorage whenever relevant state changes
+  // Save state to localStorage
   useEffect(() => {
     if (!isLoading && selectedProvince) {
-      const stateToSave = {
-        provinceId: selectedProvince?.id,
-        provinceSearch: provinceSearch,
-        selectedDistrictIds: selectedDistricts.map(d => d.id),
-        selectedPeriodEra: selectedPeriod?.era,
-        isGlobalView,
-        isSidebarOpen,
-      };
-      localStorage.setItem('thaiTemporalPortalState', JSON.stringify(stateToSave));
+      localStorage.setItem(
+        "thaiTemporalPortalState",
+        JSON.stringify({
+          provinceId: selectedProvince.id,
+          provinceSearch,
+          selectedDistrictIds: selectedDistricts.map((d) => d.id),
+          selectedPeriodEra: selectedPeriod?.era,
+          isGlobalView,
+          isSidebarOpen,
+        })
+      );
     }
   }, [selectedProvince, selectedDistricts, selectedPeriod, isGlobalView, isSidebarOpen, provinceSearch, isLoading]);
 
@@ -140,21 +117,30 @@ export default function Home() {
     fetchProvinces();
   }, [fetchProvinces]);
 
+  // Fullscreen handling with Fullscreen API
   useEffect(() => {
-    const handleEsc = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && isMapFullScreen) setIsMapFullScreen(false);
+    const handleFullscreenChange = () => {
+      setIsMapFullScreen(document.fullscreenElement === mapContainerRef.current);
     };
-    window.addEventListener("keydown", handleEsc);
-    return () => window.removeEventListener("keydown", handleEsc);
-  }, [isMapFullScreen]);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
 
+  // Close sidebar when clicking outside on mobile
   useEffect(() => {
-    if (isMapFullScreen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "auto";
-    }
-  }, [isMapFullScreen]);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        sidebarRef.current &&
+        !sidebarRef.current.contains(event.target as Node) &&
+        window.innerWidth < 1024 &&
+        isSidebarOpen
+      ) {
+        setIsSidebarOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isSidebarOpen]);
 
   const toggleDistrict = useCallback((district: District) => {
     setIsGlobalView(false);
@@ -163,7 +149,7 @@ export default function Home() {
         ? prev.filter((d) => d.id !== district.id)
         : [...prev, district]
     );
-    if (!selectedPeriod && district.historicalPeriods.length > 0) {
+    if (!selectedPeriod && district.historicalPeriods.length) {
       setSelectedPeriod(district.historicalPeriods[0]);
     }
   }, [selectedPeriod]);
@@ -183,245 +169,268 @@ export default function Home() {
 
   const toggleSidebar = useCallback(() => setIsSidebarOpen((prev) => !prev), []);
 
-  const toggleFullScreen = useCallback(() => setIsMapFullScreen((prev) => !prev), []);
+  const toggleFullScreen = useCallback(() => {
+    if (!mapContainerRef.current) return;
 
-  const isDistrictSelected = useCallback((district: District) => {
-    return selectedDistricts.some(d => d.id === district.id);
-  }, [selectedDistricts]);
+    if (!isMapFullScreen) {
+      mapContainerRef.current.requestFullscreen().catch((err) => {
+        console.error("Error attempting to enable fullscreen:", err);
+      });
+    } else {
+      document.exitFullscreen().catch((err) => {
+        console.error("Error attempting to exit fullscreen:", err);
+      });
+    }
+  }, [isMapFullScreen]);
+
+  const isDistrictSelected = useCallback(
+    (district: District) => selectedDistricts.some((d) => d.id === district.id),
+    [selectedDistricts]
+  );
 
   const filteredProvinces = provinces.filter(
-    (province) =>
-      province.name.toLowerCase().includes(provinceSearch.toLowerCase()) ||
-      province.thaiName.toLowerCase().includes(provinceSearch.toLowerCase())
+    (p) =>
+      p.name.toLowerCase().includes(provinceSearch.toLowerCase()) ||
+      p.thaiName.toLowerCase().includes(provinceSearch.toLowerCase())
   );
 
   if (isLoading) {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-          className="w-16 h-16 border-4 border-t-primary border-b-secondary rounded-full"
+          className="w-12 h-12 border-4 border-t-primary border-r-secondary rounded-full"
         />
-        <span className="mt-6 text-xl font-thai text-primary animate-pulse">Initializing Temporal Matrix...</span>
+        <span className="ml-4 text-lg font-thai text-foreground">Loading...</span>
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground relative overflow-hidden">
-      <div className="container mx-auto px-4 py-6 max-w-7xl relative z-10">
-        <motion.header
-          initial={{ opacity: 0, y: -50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="mb-8 text-center"
+    <main className="min-h-screen text-foreground flex flex-col">
+      {/* Header */}
+      <motion.header
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="py-6 px-4 sm:px-6 lg:px-8"
+      >
+        <h1 className="text-4xl md:text-5xl lg:text-6xl text-center font-thai font-extrabold bg-gradient-to-l from-primary via-accent to-indigo-400 text-transparent bg-clip-text">
+          Thai Temporal Portal
+        </h1>
+        <p className="text-sm sm:text-base text-foreground/70 mt-2 text-center">
+          Explore Thailand's Historical Journey
+        </p>
+      </motion.header>
+
+      {/* Mobile Sidebar Toggle */}
+      <div className="lg:hidden px-4 sm:px-6 mb-4">
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={toggleSidebar}
+          className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-primary/10 text-primary border border-primary/30"
+          aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
         >
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-thai font-extrabold bg-gradient-to-r from-primary via-accent to-indigo-400 text-transparent bg-clip-text">
-            Thai Temporal Portal
-          </h1>
-          <p className="text-base md:text-lg lg:text-xl text-foreground/70 mt-3 font-thai max-w-2xl mx-auto">
-            Traverse Thailand&apos;s Chronological Nexus
-          </p>
-        </motion.header>
+          <span className="text-sm font-thai">{isSidebarOpen ? "Close" : "Controls"}</span>
+          {isSidebarOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </motion.button>
+      </div>
 
-        <div className="lg:hidden flex justify-center mb-4">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={toggleSidebar}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/20 text-primary hover:bg-primary/30 border border-primary/50"
-          >
-            <span className="text-sm font-thai">{isSidebarOpen ? "Collapse" : "Expand"} Controls</span>
-            {isSidebarOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-          </motion.button>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <AnimatePresence>
-            {(isSidebarOpen || typeof window !== "undefined" && window.innerWidth >= 1024) && (
-              <motion.aside
-                initial={{ opacity: 0, x: -300 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -300 }}
-                transition={{ duration: 0.5 }}
-                className="lg:col-span-4 xl:col-span-3 bg-card/80 backdrop-blur-2xl border border-glass-border rounded-2xl p-6 space-y-6 shadow-[0_0_20px_rgba(0,212,255,0.2)]"
-              >
-                <div className="space-y-4">
-                  <h2 className="text-xl font-thai text-foreground/70">Province Selector</h2>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Search Province..."
-                      value={provinceSearch}
-                      onChange={(e) => setProvinceSearch(e.target.value)}
-                      className="w-full p-3 rounded-lg bg-card/50 text-foreground border border-glass-border focus:ring-2 focus:ring-primary focus:outline-none placeholder-foreground/50"
-                    />
-                    <div className="relative">
-                      <select
-                        className="w-full mt-2 p-3 rounded-lg bg-card/50 text-foreground border border-glass-border focus:ring-2 focus:ring-primary focus:outline-none appearance-none pr-10"
-                        value={selectedProvince?.id || ""}
-                        onChange={(e) => {
-                          const province = provinces.find((p) => p.id === e.target.value);
-                          setSelectedProvince(province || null);
-                          setSelectedDistricts([]);
-                          setSelectedPeriod(null);
-                          setProvinceSearch("");
-                        }}
-                      >
-                        {filteredProvinces.map((province) => (
-                          <option key={province.id} value={province.id} className="bg-card text-foreground">
-                            {province.name} ({province.thaiName})
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" className="text-foreground" viewBox="0 0 16 16">
-                          <path d="M8 12l-6-6h12z" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-thai text-foreground/70">Temporal Slider</h2>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={toggleGlobalView}
-                      className={`px-3 py-1 rounded-full text-sm border ${isGlobalView 
-                        ? "bg-secondary text-foreground border-secondary" 
-                        : "bg-card text-secondary hover:bg-secondary/20 border-secondary/50"}`}
-                    >
-                      {isGlobalView ? "District View" : "Global View"}
-                    </motion.button>
-                  </div>
-                  <PeriodSelector
-                    periods={isGlobalView ? allPeriods : (selectedDistricts[0]?.historicalPeriods || [])}
-                    selectedPeriod={selectedPeriod}
-                    onSelectPeriod={handlePeriodChange}
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col lg:flex-row px-4 sm:px-6 lg:px-8 pb-6 gap-6">
+        {/* Sidebar */}
+        <AnimatePresence>
+          {(isSidebarOpen || window.innerWidth >= 1024) && (
+            <motion.aside
+              ref={sidebarRef}
+              initial={{ opacity: 0, x: -100 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -100 }}
+              transition={{ duration: 0.3 }}
+              className="lg:w-80 xl:w-96 flex-shrink-0 bg-card/90 border border-glass-border rounded-xl p-4 space-y-6 shadow-lg"
+              aria-label="Control Panel"
+            >
+              {/* Province Selector */}
+              <section className="space-y-3">
+                <h2 className="text-lg font-thai text-foreground/80">Province</h2>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-foreground/50" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Search Province..."
+                    value={provinceSearch}
+                    onChange={(e) => setProvinceSearch(e.target.value)}
+                    className="w-full p-2 pl-10 pr-10 rounded-lg bg-card/50 text-foreground border border-glass-border focus:ring-2 focus:ring-primary focus:outline-none placeholder-foreground/50"
+                    aria-label="Search provinces"
                   />
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-thai text-foreground/70">District Selector</h2>
-                    <div className="text-xs text-foreground/60">
-                      {selectedDistricts.length} / {selectedProvince?.districts.length || 0} selected
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-3">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={selectAllDistricts}
-                      className={`flex-1 p-2 rounded-lg border ${
-                        selectedProvince && selectedDistricts.length === selectedProvince.districts.length
-                          ? "bg-primary text-white border-primary"
-                          : "bg-primary/20 text-primary hover:bg-primary/30 border-primary/50"
-                      }`}
+                  {provinceSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setProvinceSearch("")}
+                      className="absolute right-3 top-2/5 transform -translate-y-1/2 text-foreground/50 hover:text-foreground focus:outline-none"
+                      aria-label="Clear search"
                     >
-                      Select All
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={clearSelection}
-                      className={`flex-1 p-2 rounded-lg border ${
-                        selectedDistricts.length === 0
-                          ? "bg-secondary text-white border-secondary"
-                          : "bg-secondary/20 text-secondary hover:bg-secondary/30 border-secondary/50"
-                      }`}
-                    >
-                      Reset
-                    </motion.button>
-                  </div>
-                  
-                  {/* District list with improved UI */}
-                  <div className="mt-3 max-h-48 overflow-y-auto pr-1 district-selector">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {selectedProvince?.districts.map((district) => (
-                        <motion.button
-                          key={district.id}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => toggleDistrict(district)}
-                          className={`p-2 rounded-lg text-left flex items-center gap-2 transition-colors ${
-                            isDistrictSelected(district)
-                              ? "bg-primary/20 border border-primary text-primary"
-                              : "bg-card/50 border border-glass-border hover:bg-card/80 text-foreground/80"
-                          }`}
-                        >
-                          {isDistrictSelected(district) ? (
-                            <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                          ) : (
-                            <Circle className="w-4 h-4 flex-shrink-0" />
-                          )}
-                          <span className="truncate text-sm">{district.name}</span>
-                        </motion.button>
-                      ))}
-                    </div>
-                  </div>
+                      <span className="text-xl">×</span>
+                    </button>
+                  )}
                 </div>
-              </motion.aside>
-            )}
-          </AnimatePresence>
+                <select
+                  className="w-full mt-2 p-2 rounded-lg bg-card/50 border border-glass-border focus:ring-2 focus:ring-primary focus:outline-none text-foreground"
+                  value={selectedProvince?.id || ""}
+                  onChange={(e) => {
+                    const province = provinces.find((p) => p.id === e.target.value);
+                    setSelectedProvince(province || null);
+                    setSelectedDistricts([]);
+                    setSelectedPeriod(null);
+                    setProvinceSearch("");
+                  }}
+                  aria-label="Select province"
+                >
+                  {filteredProvinces.map((province) => (
+                    <option key={province.id} value={province.id}>
+                      {province.name} ({province.thaiName})
+                    </option>
+                  ))}
+                </select>
+              </section>
+              {/* Period Selector */}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-thai text-foreground/80">Time Period</h2>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={toggleGlobalView}
+                    className={`px-3 py-1 rounded-lg text-sm border ${
+                      isGlobalView
+                        ? "bg-secondary text-white border-secondary"
+                        : "bg-card/50 text-secondary border-secondary/50 hover:bg-secondary/10"
+                    }`}
+                    aria-label={isGlobalView ? "Switch to District View" : "Switch to Global View"}
+                  >
+                    {isGlobalView ? "District" : "Global"}
+                  </motion.button>
+                </div>
+                <PeriodSelector
+                  periods={isGlobalView ? allPeriods : selectedDistricts[0]?.historicalPeriods || []}
+                  selectedPeriod={selectedPeriod}
+                  onSelectPeriod={handlePeriodChange}
+                />
+              </section>
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="lg:col-span-8 xl:col-span-9 space-y-6"
-          >
-            <div className={`bg-card/80 backdrop-blur-2xl border border-glass-border rounded-2xl p-4 shadow-[0_0_20px_rgba(0,212,255,0.2)] ${isMapFullScreen ? "mt-16 fixed inset-0 z-50" : "relative"}`}>
-              <div className="flex justify-between items-center mb-4">
-                <motion.div animate={{ opacity: 1 }} className="px-4 py-1 bg-primary/30 text-foreground rounded-full border border-primary/50">
-                  <span className="text-sm font-thai">{selectedProvince?.name} ({selectedProvince?.thaiName})</span>
-                </motion.div>
+              {/* District Selector */}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-thai text-foreground/80">Districts</h2>
+                  <span className="text-xs text-foreground/60">
+                    {selectedDistricts.length} / {selectedProvince?.districts.length || 0}
+                  </span>
+                </div>
                 <div className="flex gap-2">
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={toggleFullScreen}
-                    className="p-2 rounded-full bg-secondary/20 text-secondary hover:bg-secondary/30 border border-secondary/50"
+                    onClick={selectAllDistricts}
+                    className="flex-1 py-2 rounded-lg bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20"
+                    aria-label="Select all districts"
                   >
-                    {isMapFullScreen ? <Minimize className="w-6 h-6" /> : <Maximize className="w-6 h-6" />}
+                    Select All
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={clearSelection}
+                    className="flex-1 py-2 rounded-lg bg-secondary/10 text-secondary border border-secondary/30 hover:bg-secondary/20"
+                    aria-label="Clear district selection"
+                  >
+                    Clear
                   </motion.button>
                 </div>
-              </div>
-              {selectedProvince && (
-                <Map
-                  districts={selectedProvince.districts}
-                  selectedDistricts={selectedDistricts}
-                  onDistrictToggle={toggleDistrict}
-                  selectedPeriod={selectedPeriod}
-                  isGlobalView={isGlobalView}
-                />
-              )}
-            </div>
+                <div className="max-h-48 overflow-y-auto space-y-2">
+                  {selectedProvince?.districts.map((district) => (
+                    <motion.button
+                      key={district.id}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => toggleDistrict(district)}
+                      className={`w-full p-2 rounded-lg flex items-center gap-2 text-left border ${
+                        isDistrictSelected(district)
+                          ? "bg-primary/20 border-primary text-primary"
+                          : "bg-card/50 border-glass-border text-foreground/80 hover:bg-card/70"
+                      }`}
+                      aria-label={`Toggle ${district.name} district`}
+                    >
+                      {isDistrictSelected(district) ? (
+                        <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                      ) : (
+                        <Circle className="w-4 h-4 flex-shrink-0" />
+                      )}
+                      <span className="truncate text-sm">{district.name}</span>
+                    </motion.button>
+                  ))}
+                </div>
+              </section>
+            </motion.aside>
+          )}
+        </AnimatePresence>
 
-            <AnimatePresence>
-              {(selectedDistricts.length > 0 || isGlobalView) && selectedPeriod && (
-                <motion.div
-                  initial={{ opacity: 0, y: 50 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 50 }}
-                  transition={{ duration: 0.5 }}
-                  className="bg-card/80 backdrop-blur-2xl border border-glass-border rounded-2xl p-6 shadow-[0_0_20px_rgba(0,212,255,0.2)]"
-                >
-                  <DistrictInfo
-                    districts={selectedDistricts}
-                    period={selectedPeriod}
-                    isGlobalView={isGlobalView}
-                    provinceName={selectedProvince?.name || ""}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col space-y-6">
+          {/* Map Section */}
+          <motion.section
+            ref={mapContainerRef}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-card/90 border border-glass-border rounded-xl p-4 relative"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <span className="px-3 py-1 bg-primary/10 text-foreground rounded-lg border border-primary/30">
+                {selectedProvince?.name} ({selectedProvince?.thaiName})
+              </span>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={toggleFullScreen}
+                className="p-2 rounded-lg bg-secondary/10 text-secondary border border-secondary/30 hover:bg-secondary/20"
+                aria-label={isMapFullScreen ? "Exit full screen" : "Enter full screen"}
+              >
+                {isMapFullScreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+              </motion.button>
+            </div>
+            {selectedProvince && (
+              <Map
+                districts={selectedProvince.districts}
+                selectedDistricts={selectedDistricts}
+                onDistrictToggle={toggleDistrict}
+                selectedPeriod={selectedPeriod}
+                isGlobalView={isGlobalView}
+              />
+            )}
+          </motion.section>
+
+          {/* District Info */}
+          <AnimatePresence>
+            {(selectedDistricts.length > 0 || isGlobalView) && selectedPeriod && (
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                transition={{ duration: 0.3 }}
+                className="bg-card/90 border border-glass-border rounded-xl p-4"
+              >
+                <DistrictInfo
+                  districts={selectedDistricts}
+                  period={selectedPeriod}
+                  isGlobalView={isGlobalView}
+                  provinceName={selectedProvince?.name || ""}
+                />
+              </motion.section>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </main>

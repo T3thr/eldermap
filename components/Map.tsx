@@ -53,28 +53,37 @@ export default function Map({
     }
   }, [isDragging, dragStart]);
 
-  const handleMouseUp = useCallback(() => setIsDragging(false), []);
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+    setTouchDistance(null);
+  }, []);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     const scaleFactor = 0.15;
     setMapScale((prev) => Math.max(0.5, Math.min(3.5, prev + (e.deltaY < 0 ? scaleFactor : -scaleFactor))));
   }, []);
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      const touch1 = e.touches[0];
-      const touch2 = e.touches[1];
-      const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length === 1 && isDragging) {
+        handleMouseMove(e);
+      } else if (e.touches.length === 2) {
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
 
-      if (touchDistance === null) {
-        setTouchDistance(distance);
-      } else {
-        const scale = distance / touchDistance;
-        setMapScale((prev) => Math.max(0.5, Math.min(3.5, prev * scale)));
-        setTouchDistance(distance);
+        if (touchDistance === null) {
+          setTouchDistance(distance);
+        } else {
+          const scale = distance / touchDistance;
+          setMapScale((prev) => Math.max(0.5, Math.min(3.5, prev * scale)));
+          setTouchDistance(distance);
+        }
       }
-    }
-  }, [touchDistance]);
+    },
+    [touchDistance, isDragging, handleMouseMove]
+  );
 
   const getDistrictColor = (district: District) =>
     isGlobalView && selectedPeriod
@@ -88,15 +97,20 @@ export default function Map({
   };
 
   return (
-    <div className="relative h-[75vh] rounded-xl overflow-hidden bg-card/50 border border-glass-border shadow-[0_0_20px_rgba(0,212,255,0.2)]">
-      <div className="absolute top-4 right-4 z-20 bg-card/80 rounded-full p-2 flex flex-col gap-2 shadow-[0_0_10px_rgba(0,212,255,0.3)]">
+    <div
+      className="relative w-full h-[50vh] sm:h-[60vh] md:h-[70vh] lg:h-[75vh] rounded-xl overflow-hidden bg-card/50 border border-glass-border shadow-md"
+      style={{ touchAction: "none" }}
+    >
+      {/* Controls */}
+      <div className="absolute top-4 right-4 z-20 bg-card/80 rounded-full p-2 flex flex-col gap-2 shadow-md">
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setMapScale((prev) => Math.min(prev + 0.25, 3.5))}
-          className="w-8 h-8 flex items-center justify-center rounded-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/50"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/50 touch-manipulation"
+          aria-label="Zoom in"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
           </svg>
         </motion.button>
@@ -107,9 +121,10 @@ export default function Map({
             setMapScale(1);
             setMapPosition({ x: 0, y: 0 });
           }}
-          className="w-8 h-8 flex items-center justify-center rounded-full bg-secondary/20 hover:bg-secondary/30 text-secondary border border-secondary/50"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-secondary/20 hover:bg-secondary/30 text-secondary border border-secondary/50 touch-manipulation"
+          aria-label="Reset map"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
           </svg>
         </motion.button>
@@ -117,9 +132,10 @@ export default function Map({
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setMapScale((prev) => Math.max(prev - 0.25, 0.5))}
-          className="w-8 h-8 flex items-center justify-center rounded-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/50"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/50 touch-manipulation"
+          aria-label="Zoom out"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4" />
           </svg>
         </motion.button>
@@ -127,25 +143,32 @@ export default function Map({
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setShowGrid((prev) => !prev)}
-          className={`w-8 h-8 flex items-center justify-center rounded-full ${showGrid ? "bg-primary/30 text-primary" : "bg-card text-foreground/70"} hover:bg-primary/40 border border-primary/50`}
+          className={`w-10 h-10 flex items-center justify-center rounded-full ${
+            showGrid ? "bg-primary/30 text-primary" : "bg-card text-foreground/70"
+          } hover:bg-primary/40 border border-primary/50 touch-manipulation`}
+          aria-label={showGrid ? "Hide grid" : "Show grid"}
         >
-          <Grid className="w-4 h-4" />
+          <Grid className="w-5 h-5" />
         </motion.button>
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setShowCenterDot((prev) => !prev)}
-          className={`w-8 h-8 flex items-center justify-center rounded-full ${showCenterDot ? "bg-secondary/30 text-secondary" : "bg-card text-foreground/70"} hover:bg-secondary/40 border border-secondary/50`}
+          className={`w-10 h-10 flex items-center justify-center rounded-full ${
+            showCenterDot ? "bg-secondary/30 text-secondary" : "bg-card text-foreground/70"
+          } hover:bg-secondary/40 border border-secondary/50 touch-manipulation`}
+          aria-label={showCenterDot ? "Hide center dot" : "Show center dot"}
         >
-          <MapPin className="w-4 h-4" />
+          <MapPin className="w-5 h-5" />
         </motion.button>
       </div>
 
+      {/* Legend */}
       {showLegend && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="absolute bottom-4 left-4 z-20 bg-card/80 rounded-xl p-4 shadow-[0_0_10px_rgba(0,212,255,0.3)] max-w-sm"
+          className="absolute bottom-4 left-4 z-20 bg-card/80 rounded-xl p-4 shadow-md max-w-xs w-full sm:max-w-sm"
         >
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-sm font-thai font-medium text-foreground/70">Temporal Legend</h3>
@@ -153,12 +176,13 @@ export default function Map({
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowLegend(false)}
-              className="text-secondary"
+              className="text-secondary touch-manipulation"
+              aria-label="Hide legend"
             >
               <EyeOff className="w-5 h-5" />
             </motion.button>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             {isGlobalView && selectedPeriod ? (
               <div className="flex items-center">
                 <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: selectedPeriod.color }} />
@@ -168,7 +192,9 @@ export default function Map({
               districts.slice(0, 6).map((district) => (
                 <div key={district.id} className="flex items-center">
                   <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: getCollabColor(district) }} />
-                  <span className="text-xs font-thai text-foreground/80 truncate">{district.name}</span>
+                  <span className="text-xs font-thai text-foreground/80 truncate max-w-[100px] sm:max-w-[120px]">
+                    {district.name}
+                  </span>
                 </div>
               ))
             )}
@@ -181,35 +207,38 @@ export default function Map({
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowLegend(true)}
-          className="absolute bottom-4 left-4 z-20 bg-card/80 rounded-full p-2 text-primary border border-primary/50"
+          className="absolute bottom-4 left-4 z-20 bg-card/80 rounded-full p-2 text-primary border border-primary/50 touch-manipulation"
+          aria-label="Show legend"
         >
           <Eye className="w-5 h-5" />
         </motion.button>
       )}
 
+      {/* Hovered District Tooltip */}
       {hoveredDistrict && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="absolute top-4 left-4 z-20 bg-card/80 rounded-lg p-3 shadow-[0_0_10px_rgba(0,212,255,0.3)]"
+          className="absolute top-4 left-4 z-20 bg-card/80 rounded-lg p-3 shadow-md max-w-xs w-full"
         >
           <span className="text-sm font-thai font-medium text-foreground">{hoveredDistrict}</span>
           {districts.find((d) => d.name === hoveredDistrict)?.collab?.isActive && showCollab && (
-            <div className="mt-2 text-xs text-yellow-500">
+            <div className="mt-1 text-xs text-yellow-500">
               Collab: {districts.find((d) => d.name === hoveredDistrict)?.collab?.novelTitle}
             </div>
           )}
         </motion.div>
       )}
 
+      {/* Map Container */}
       <div
-        className="w-full h-full cursor-grab touch-pan-x touch-pan-y"
+        className="w-full h-full cursor-grab touch-pan-x touch-pan-y select-none"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onTouchStart={handleMouseDown}
-        onTouchMove={handleTouchMove} // Use handleTouchMove for touch-based zoom
+        onTouchMove={handleTouchMove}
         onTouchEnd={handleMouseUp}
         onWheel={handleWheel}
         style={{ cursor: isDragging ? "grabbing" : "grab" }}
@@ -219,7 +248,11 @@ export default function Map({
           transition={{ duration: 0.15 }}
           className="w-full h-full flex items-center justify-center"
         >
-          <svg viewBox="0 0 600 400" className="w-full h-auto">
+          <svg
+            viewBox="0 0 600 400"
+            className="w-full h-full max-w-full max-h-full"
+            preserveAspectRatio="xMidYMid meet"
+          >
             <defs>
               <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
                 <path d="M 20 0 L 0 0 0 20" fill="none" stroke="var(--foreground)" strokeOpacity="0.15" />
@@ -231,7 +264,15 @@ export default function Map({
             </defs>
             {showGrid && <rect width="600" height="400" fill="url(#grid)" opacity="0.4" />}
             {showCenterDot && (
-              <circle cx="300" cy="200" r="5" fill="var(--secondary)" stroke="var(--foreground)" strokeWidth="2" filter="url(#glow)" />
+              <circle
+                cx="300"
+                cy="200"
+                r="5"
+                fill="var(--secondary)"
+                stroke="var(--foreground)"
+                strokeWidth="2"
+                filter="url(#glow)"
+              />
             )}
             <g>
               {districts.map((district) => {
@@ -246,7 +287,13 @@ export default function Map({
                     onMouseEnter={() => setHoveredDistrict(district.name)}
                     onMouseLeave={() => setHoveredDistrict(null)}
                     onClick={() => onDistrictToggle(district)}
-                    onTouchStart={() => onDistrictToggle(district)}
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      onDistrictToggle(district);
+                    }}
+                    className="touch-manipulation"
+                    role="button"
+                    aria-label={`Toggle ${district.name}`}
                   >
                     {district.mapPath ? (
                       <polygon
@@ -280,7 +327,7 @@ export default function Map({
                       textAnchor="middle"
                       alignmentBaseline="middle"
                       fill={isColorDark(getCollabColor(district)) ? "#fff" : "#333"}
-                      fontSize="14"
+                      fontSize="clamp(10px, 2vw, 14px)"
                       fontWeight={isSelected ? "bold" : "normal"}
                       className="font-thai select-none"
                       opacity={isSelected || hoveredDistrict === district.name ? 1 : 0.8}
@@ -300,7 +347,9 @@ export default function Map({
 
 // Helper functions
 function isColorDark(color: string): boolean {
-  let r = 0, g = 0, b = 0;
+  let r = 0,
+    g = 0,
+    b = 0;
   if (color.startsWith("#")) {
     if (color.length === 4) {
       r = parseInt(color[1] + color[1], 16);

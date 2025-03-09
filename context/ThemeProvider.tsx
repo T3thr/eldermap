@@ -5,7 +5,7 @@ import { ThemeProvider as NextThemesProvider, ThemeProviderProps, useTheme } fro
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   return (
-    <NextThemesProvider {...props} attribute="class" enableSystem={true} defaultTheme="system">
+    <NextThemesProvider {...props} attribute="class">
       <ThemeSynchronizer>{children}</ThemeSynchronizer>
     </NextThemesProvider>
   );
@@ -17,28 +17,12 @@ function ThemeSynchronizer({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     setMounted(true);
-  }, []);
-
-  React.useEffect(() => {
-    if (mounted && resolvedTheme) {
-      // Add transitioning class briefly when theme changes
-      document.documentElement.classList.add('theme-transitioning');
-      
-      // Remove the class after transition completes
-      const timer = setTimeout(() => {
-        document.documentElement.classList.remove('theme-transitioning');
-      }, 300); // Match with CSS transition duration
-      
-      return () => clearTimeout(timer);
-    }
-  }, [resolvedTheme, mounted]);
+    // Immediately apply the theme to prevent flash
+    document.documentElement.classList.add(resolvedTheme === "dark" ? "dark" : "light");
+  }, [resolvedTheme]);
 
   if (!mounted) {
-    return (
-      <div className="invisible" aria-hidden="true">
-        {children}
-      </div>
-    );
+    return null; // Return null instead of invisible div to prevent layout shift
   }
 
   return <>{children}</>;
