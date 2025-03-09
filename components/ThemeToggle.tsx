@@ -41,41 +41,52 @@ export default function ThemeToggle({
 
   // Initialize theme from localStorage or system preference
   useEffect(() => {
-    // The useTheme hook already handles this logic
-    // This effect is unnecessary and can be removed
-  }, []);
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme) {
+      setTheme(savedTheme);
+    } else {
+      // Check system preference
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      setTheme(prefersDark ? "dark" : "light");
+    }
+  }, [setTheme]);
 
   // Save theme preference to localStorage whenever it changes
   useEffect(() => {
-    // The useTheme hook already handles this logic
-    // This effect is unnecessary and can be removed
+    if (theme) {
+      localStorage.setItem("theme", theme);
+    }
   }, [theme]);
 
+  // Add a useEffect to handle transition completion
+  useEffect(() => {
+    let transitionTimer: NodeJS.Timeout;
+    if (isChanging) {
+      transitionTimer = setTimeout(() => {
+        setIsChanging(false);
+        document.documentElement.classList.remove('theme-transitioning');
+      }, 500);
+    }
+    return () => {
+      if (transitionTimer) clearTimeout(transitionTimer);
+    };
+  }, [isChanging]);
+
   const toggleTheme = () => {
-    // Prevent multiple rapid toggles
-    if (isChanging) return;
-    
+    // Set changing state immediately
     setIsChanging(true);
     
-    // Apply the transitioning class immediately
+    // Add transitioning class
     document.documentElement.classList.add('theme-transitioning');
     
-    // Switch theme with a slight delay to allow animation to start
-    setTimeout(() => {
-      const newTheme = theme === "dark" ? "light" : "dark";
-      setTheme(newTheme);
-      
-      // Handle menu closing if provided
-      if (closeMenuOnToggle) {
-        closeMenuOnToggle();
-      }
-    }, 50);
+    // Change theme immediately - don't wait
+    const newTheme = theme === "dark" ? "light" : "dark";
+    setTheme(newTheme);
     
-    // Reset changing state after theme transition completes
-    setTimeout(() => {
-      setIsChanging(false);
-      document.documentElement.classList.remove('theme-transitioning');
-    }, 450); // Slightly shorter than original to prevent visible delay
+    // Handle menu closing if provided
+    if (closeMenuOnToggle) {
+      closeMenuOnToggle();
+    }
   };
 
   // Don't render anything until mounted to prevent hydration mismatch
@@ -102,18 +113,16 @@ export default function ThemeToggle({
         onMouseLeave={() => setIsHovered(false)}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
-        role="switch"
-        aria-checked={isDark}
       >
         {/* Background track */}
         <motion.div 
-          className="absolute inset-0 rounded-full transition-colors duration-300"
+          className="absolute inset-0 rounded-full"
           animate={{ 
             backgroundColor: isDark 
               ? "rgba(30, 58, 138, 0.6)" 
               : "rgba(250, 204, 21, 0.5)" 
           }}
+          transition={{ duration: 0.3 }}
         />
         
         {/* Track highlights/shadows */}
@@ -142,7 +151,7 @@ export default function ThemeToggle({
                   scale: [0, 1, 0],
                   width: isDark ? "1px" : "2px",
                   height: isDark ? "1px" : "2px",
-                  x: 4 + Math.random() * (parseInt(width.replace("w-", "")) * 3 - 8),
+                  x: 4 + Math.random() * (parseInt(width.replace("w-", "")) - 8),
                   y: 2 + Math.random() * (parseInt(height.replace("h-", "")) - 4),
                 }}
                 transition={{ 
@@ -165,14 +174,10 @@ export default function ThemeToggle({
             flex items-center justify-center
             z-10
             overflow-hidden
-            transition-shadow duration-300
           `}
           animate={{ 
             backgroundColor: isDark ? "#1e293b" : "#ffffff",
-            left: isDark ? `calc(100% - ${parseInt(circle.split(" ")[0].replace("w-", ""))}px - 4px)` : "4px",
-            boxShadow: isDark 
-              ? "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06), 0 0 0 2px rgba(30, 58, 138, 0.2)" 
-              : "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06), 0 0 0 2px rgba(250, 204, 21, 0.2)"
+            left: isDark ? `calc(100% - ${parseInt(circle.replace("w-", "")) + 4}px)` : "4px" 
           }}
           transition={{ 
             type: "spring", 
@@ -229,33 +234,31 @@ export default function ThemeToggle({
           </AnimatePresence>
           
           {/* Particle effect on toggle */}
-          <AnimatePresence>
-            {isChanging && (
-              <>
-                {[...Array(8)].map((_, i) => (
-                  <motion.div
-                    key={`particle-${i}`}
-                    className={`absolute w-1 h-1 rounded-full ${
-                      isDark ? "bg-yellow-300" : "bg-blue-300"
-                    }`}
-                    initial={{ 
-                      x: 0, 
-                      y: 0, 
-                      opacity: 1,
-                      scale: 0 
-                    }}
-                    animate={{ 
-                      x: Math.sin(i * Math.PI / 4) * (parseInt(circle.split(" ")[0].replace("w-", "")) * 0.8), 
-                      y: Math.cos(i * Math.PI / 4) * (parseInt(circle.split(" ")[1].replace("h-", "")) * 0.8),
-                      opacity: 0,
-                      scale: 2
-                    }}
-                    transition={{ duration: 0.6 }}
-                  />
-                ))}
-              </>
-            )}
-          </AnimatePresence>
+          {isChanging && (
+            <div className="absolute inset-0 pointer-events-none">
+              {[...Array(8)].map((_, i) => (
+                <motion.div
+                  key={`particle-${i}`}
+                  className={`absolute w-1 h-1 rounded-full ${
+                    isDark ? "bg-yellow-300" : "bg-blue-300"
+                  }`}
+                  initial={{ 
+                    x: 0, 
+                    y: 0, 
+                    opacity: 1,
+                    scale: 0 
+                  }}
+                  animate={{ 
+                    x: Math.sin(i * Math.PI / 4) * (parseInt(circle.replace("w-", "")) * 0.8), 
+                    y: Math.cos(i * Math.PI / 4) * (parseInt(circle.replace("h-", "")) * 0.8),
+                    opacity: 0,
+                    scale: 2
+                  }}
+                  transition={{ duration: 0.6 }}
+                />
+              ))}
+            </div>
+          )}
         </motion.div>
         
         {/* Dark theme: Stars around moon */}
@@ -308,8 +311,8 @@ export default function ThemeToggle({
                 ease: "easeInOut" 
               }}
               style={{
-                width: `${parseInt(circle.split(" ")[0].replace("w-", "")) * 3}px`,
-                height: `${parseInt(circle.split(" ")[1].replace("h-", "")) * 3}px`,
+                width: `${parseInt(circle.replace("w-", "")) * 3}px`,
+                height: `${parseInt(circle.replace("h-", "")) * 3}px`,
                 left: `4px`,
                 top: `1px`,
                 transform: 'translate(-33%, -33%)',
