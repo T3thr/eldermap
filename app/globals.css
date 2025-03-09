@@ -17,6 +17,9 @@
   --card: #f8f9fa;         /* Light card background */
   --glass-bg: #ffffffcc;    /* rgba(255, 255, 255, 0.8) */
   --glass-border: #46040433; /* rgba(255, 255, 255, 0.2) */
+  
+  /* Theme transition settings */
+  --theme-transition-duration: 300ms;
 }
 
 /* Dark Theme Variables */
@@ -31,6 +34,15 @@ html[class="dark"] {
   --glass-border: #00d4ff33; /* #00d4ff with 20% opacity */
 }
 
+/* Theme Transition Class */
+html.theme-transitioning * {
+  transition: background-color var(--theme-transition-duration) ease,
+             color var(--theme-transition-duration) ease,
+             border-color var(--theme-transition-duration) ease,
+             fill var(--theme-transition-duration) ease,
+             stroke var(--theme-transition-duration) ease;
+}
+
 /* Body Styles */
 body {
   color: var(--foreground);
@@ -39,7 +51,14 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: all 0.3s ease-in-out;
+  transition: all var(--theme-transition-duration) ease;
+}
+
+/* Transition for all color properties */
+:root * {
+  transition-property: background-color, color, border-color, fill, stroke;
+  transition-duration: var(--theme-transition-duration);
+  transition-timing-function: ease;
 }
 
 /* Base Layer for Typography */
@@ -47,7 +66,7 @@ body {
   h1, h2, h3, h4, h5, h6 {
     font-weight: 700;
     color: var(--primary);
-    transition: color 0.3s ease;
+    transition: color var(--theme-transition-duration) ease;
   }
 }
 
@@ -58,7 +77,7 @@ body {
   border: 1px solid var(--glass-border);
   border-radius: 1rem;
   box-shadow: 0 4px 30px #0000001a; /* rgba(0, 0, 0, 0.1) */
-  transition: all 0.3s ease-in-out;
+  transition: all var(--theme-transition-duration) ease;
 }
 
 /* Custom Animations */
