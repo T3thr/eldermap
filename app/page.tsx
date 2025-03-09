@@ -220,7 +220,7 @@ export default function Home() {
           Thai Temporal Portal
         </h1>
         <p className="text-sm sm:text-base text-foreground/70 mt-2 text-center">
-          Explore Thailand's Historical Journey
+          Explore Thailand&apos;s Historical Journey
         </p>
       </motion.header>
 
