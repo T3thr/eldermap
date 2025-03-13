@@ -4,8 +4,27 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, EyeOff, MapPin, Grid, Save, Plus, Trash2, Upload, Edit, X, Undo2, Redo2 } from 'lucide-react';
-import { District, Province, HistoricalPeriod, Media, CollabData } from '@/lib/districts';
+import { Eye, EyeOff, MapPin, Grid, Save, Plus, Trash2, Upload, Edit, X, Undo2, Redo2, Lock, Unlock, Search } from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, doc, getDocs, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { District,HistoricalPeriod, Media, CollabData } from '@/lib/districts';
+import { Province } from '@/lib/provinces';
+
+// Firebase configuration (replace with your own config from environment variables)
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const storage = getStorage(app);
 
 interface ProvinceData extends Province {
   districts: DistrictData[];
@@ -27,22 +46,34 @@ interface EditAction {
 interface FileUpload {
   file: File | null;
   previewUrl: string | null;
-  type: 'image' | 'video' | 'text' | 'map';
+  type: 'image' | 'video' | 'map';
+}
+
+interface Toast {
+  id: string;
+  message: string;
+  type: 'success' | 'error';
 }
 
 export default function MapEditorPage() {
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const [provinces, setProvinces] = useState<ProvinceData[]>([]);
+  const [filteredProvinces, setFilteredProvinces] = useState<ProvinceData[]>([]);
   const [selectedProvince, setSelectedProvince] = useState<ProvinceData | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<DistrictData | null>(null);
   const [selectedEra, setSelectedEra] = useState<string | null>(null);
-  const [newProvince, setNewProvince] = useState({ name: '', thaiName: '', id: '' });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [newProvince, setNewProvince] = useState({ name: '', thaiName: '', totalArea: 0 });
   const [newDistrict, setNewDistrict] = useState<Partial<DistrictData>>({
     name: '',
     thaiName: '',
     historicalColor: 'rgba(255, 255, 255, 0.5)',
     coordinates: { x: 300, y: 200, width: 100, height: 100 },
     historicalPeriods: [],
+    createdAt: Timestamp.now(),
+    createdBy: session?.user?.name || 'Admin',
+    lock: false,
+    version: 1,
   });
   const [showMapGrid, setShowMapGrid] = useState(true);
   const [showMapCenter, setShowMapCenter] = useState(true);
@@ -52,45 +83,55 @@ export default function MapEditorPage() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isDraggingDistrict, setIsDraggingDistrict] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-
-  // Initialize history and historyIndex with defaults; load from localStorage in useEffect
+  const [toasts, setToasts] = useState<Toast[]>([]);
   const [history, setHistory] = useState<EditAction[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-
   const [activeTab, setActiveTab] = useState<'image' | 'video' | 'text'>('image');
   const [mapFile, setMapFile] = useState<FileUpload>({ file: null, previewUrl: null, type: 'map' });
   const [mediaFile, setMediaFile] = useState<FileUpload>({ file: null, previewUrl: null, type: 'image' });
   const [editingProvinceName, setEditingProvinceName] = useState<string | null>(null);
   const [mapImageUrlInput, setMapImageUrlInput] = useState<string>('');
   const [mediaImageUrlInput, setMediaImageUrlInput] = useState<string>('');
+  const [isAddProvinceModalOpen, setIsAddProvinceModalOpen] = useState(false);
+  const [isAddDistrictModalOpen, setIsAddDistrictModalOpen] = useState(false);
+  const [editMode, setEditMode] = useState<'province' | 'district'>('district');
   const actionIdRef = useRef(0);
 
-  // Load history from localStorage only on the client side
+  const adminId = session?.user?.id === '1' ? 1 : 2; // Assuming Admin1 has ID 1
+
+  // Load history from localStorage
   useEffect(() => {
     const loadHistoryFromLocalStorage = (): EditAction[] => {
       const history = localStorage.getItem('mapEditorHistory');
       return history ? JSON.parse(history) : [];
     };
-
     const loadHistoryIndexFromLocalStorage = (): number => {
       const index = localStorage.getItem('mapEditorHistoryIndex');
       return index ? parseInt(index, 10) : -1;
     };
-
     setHistory(loadHistoryFromLocalStorage());
     setHistoryIndex(loadHistoryIndexFromLocalStorage());
   }, []);
 
-  // Fetch provinces data
+  // Fetch provinces and districts from Firestore
   useEffect(() => {
     const fetchProvinces = async () => {
       setLoading(true);
       try {
-        const response = await fetch('/api/map-editor');
-        const provincesData = await response.json();
+        const provincesSnapshot = await getDocs(collection(db, 'provinces'));
+        const provincesData: ProvinceData[] = await Promise.all(
+          provincesSnapshot.docs.map(async (provinceDoc) => {
+            const provinceData = provinceDoc.data() as Province;
+            const districtsSnapshot = await getDocs(collection(db, `provinces/${provinceDoc.id}/districts`));
+            const districtsData = districtsSnapshot.docs.map((districtDoc) => ({
+              ...districtDoc.data(),
+              id: districtDoc.id,
+            })) as DistrictData[];
+            return { ...provinceData, districts: districtsData };
+          })
+        );
         setProvinces(provincesData);
+        setFilteredProvinces(provincesData);
         if (provincesData.length > 0 && !selectedProvince) {
           setSelectedProvince(provincesData[0]);
           if (provincesData[0].districts.length > 0) {
@@ -99,7 +140,7 @@ export default function MapEditorPage() {
           }
         }
       } catch (err) {
-        setError('Failed to fetch provinces.');
+        addToast('error', 'Failed to fetch provinces.');
         console.error(err);
       } finally {
         setLoading(false);
@@ -107,6 +148,22 @@ export default function MapEditorPage() {
     };
     fetchProvinces();
   }, []);
+
+  // Filter provinces based on search query
+  useEffect(() => {
+    setFilteredProvinces(
+      provinces.filter((p) =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.thaiName.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    );
+  }, [searchQuery, provinces]);
+
+  const addToast = (type: 'success' | 'error', message: string) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 5000);
+  };
 
   const handleMapMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button === 0 && !isDraggingDistrict) {
@@ -122,7 +179,7 @@ export default function MapEditorPage() {
         y: e.clientY - dragStart.y,
       });
     }
-    if (isDraggingDistrict && selectedProvince) {
+    if (isDraggingDistrict && selectedProvince && canEdit(selectedDistrict)) {
       const district = selectedProvince.districts.find((d) => d.id === isDraggingDistrict);
       if (district) {
         const newX = (e.clientX - dragStart.x) / mapScale + district.coordinates.x;
@@ -138,7 +195,7 @@ export default function MapEditorPage() {
         setSelectedDistrict(updatedDistrict);
       }
     }
-  }, [isDraggingMap, isDraggingDistrict, dragStart, mapScale, selectedProvince]);
+  }, [isDraggingMap, isDraggingDistrict, dragStart, mapScale, selectedProvince, selectedDistrict]);
 
   const handleDistrictMouseDown = useCallback((e: React.MouseEvent, districtId: string) => {
     e.stopPropagation();
@@ -167,18 +224,18 @@ export default function MapEditorPage() {
     const allowedVideoTypes = ['video/mp4', 'video/webm'];
 
     if (file.size > maxSize) {
-      setError('File size exceeds 10MB limit.');
+      addToast('error', 'File size exceeds 10MB limit.');
       return false;
     }
 
     if (type === 'image' || type === 'map') {
       if (!allowedImageTypes.includes(file.type)) {
-        setError('Only JPEG, PNG, and GIF images are allowed.');
+        addToast('error', 'Only JPEG, PNG, and GIF images are allowed.');
         return false;
       }
     } else if (type === 'video') {
       if (!allowedVideoTypes.includes(file.type)) {
-        setError('Only MP4 and WebM videos are allowed.');
+        addToast('error', 'Only MP4 and WebM videos are allowed.');
         return false;
       }
     }
@@ -197,9 +254,9 @@ export default function MapEditorPage() {
     const file = e.target.files?.[0];
     if (file && validateFile(file, activeTab === 'image' ? 'image' : 'video')) {
       const previewUrl = URL.createObjectURL(file);
-      setMediaFile({ file, previewUrl, type: activeTab });
+      setMediaFile({ file, previewUrl, type: activeTab === 'image' ? 'image' : 'video' });
     }
-  };
+  };//
 
   const recordHistory = (type: EditAction['type'], data: any, previousData: any) => {
     const id = (actionIdRef.current++).toString();
@@ -235,9 +292,7 @@ export default function MapEditorPage() {
     if (!data || !selectedProvince) return;
 
     if (action.type === 'updateDistrict') {
-      const updatedDistricts = selectedProvince.districts.map((d) =>
-        d.id === data.id ? data : d
-      );
+      const updatedDistricts = selectedProvince.districts.map((d) => (d.id === data.id ? data : d));
       setSelectedProvince({ ...selectedProvince, districts: updatedDistricts });
       setSelectedDistrict(data);
     } else if (action.type === 'updateProvince') {
@@ -285,91 +340,81 @@ export default function MapEditorPage() {
     if (!selectedProvince) return;
     try {
       for (const action of history.slice(0, historyIndex + 1)) {
-        if (action.type === 'updateDistrict') {
-          await fetch('/api/map-editor', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'district',
-              id: action.data.id,
-              provinceId: selectedProvince.id,
-              data: action.data
-            })
-          });
-        } else if (action.type === 'updateProvince') {
-          await fetch('/api/map-editor', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'province',
-              id: action.data.id,
-              data: action.data
-            })
-          });
+        if (action.type === 'updateDistrict' && selectedProvince && canEdit(action.data)) {
+          const districtRef = doc(db, `provinces/${selectedProvince.id}/districts`, action.data.id);
+          await updateDoc(districtRef, action.data);
+        } else if (action.type === 'updateProvince' && canEdit(action.data)) {
+          const provinceRef = doc(db, 'provinces', action.data.id);
+          await updateDoc(provinceRef, action.data);
         } else if (action.type === 'addProvince') {
-          await fetch('/api/map-editor', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'province',
-              data: action.data
-            })
-          });
-        } else if (action.type === 'addDistrict') {
-          await fetch('/api/map-editor', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'district',
-              data: { ...action.data, provinceId: selectedProvince.id }
-            })
-          });
-        } else if (action.type === 'uploadMedia' && selectedDistrict) {
-          const response = await fetch('/api/map-editor', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'media',
-              data: {
-                provinceId: selectedProvince.id,
-                districtId: selectedDistrict.id,
-                file: action.data.file,
-                periodIndex: selectedDistrict.historicalPeriods.findIndex(p => p.era === action.data.era)
-              }
-            })
-          });
-          const { url } = await response.json();
-          action.data.url = url;
-        } else if (action.type === 'uploadMap' && selectedDistrict) {
-          const response = await fetch('/api/map-editor', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'mapImage',
-              data: {
-                provinceId: selectedProvince.id,
-                districtId: selectedDistrict.id,
-                file: action.data.file || { url: mapImageUrlInput }
-              }
-            })
-          });
-          const { url } = await response.json();
-          action.data.mapImageUrl = url;
+          const provinceRef = doc(db, 'provinces', action.data.id);
+          await setDoc(provinceRef, action.data);
+        } else if (action.type === 'addDistrict' && selectedProvince) {
+          const districtRef = doc(db, `provinces/${selectedProvince.id}/districts`, action.data.id);
+          await setDoc(districtRef, action.data);
+        } else if (action.type === 'uploadMedia' && selectedDistrict && canEdit(selectedDistrict)) {
+          const file = action.data.file;
+          if (file) {
+            const storageRef = ref(storage, `media/${selectedProvince.id}/${selectedDistrict.id}/${file.name}`);
+            await uploadBytes(storageRef, file);
+            const url = await getDownloadURL(storageRef);
+            const periodIndex = selectedDistrict.historicalPeriods.findIndex((p) => p.era === action.data.era);
+            const updatedPeriods = [...selectedDistrict.historicalPeriods];
+            updatedPeriods[periodIndex].media.push({
+              type: action.data.type,
+              url,
+              altText: '',
+              description: '',
+            });
+            const districtRef = doc(db, `provinces/${selectedProvince.id}/districts`, selectedDistrict.id);
+            await updateDoc(districtRef, { historicalPeriods: updatedPeriods });
+          }
+        } else if (action.type === 'uploadMap' && selectedDistrict && canEdit(selectedDistrict)) {
+          const file = action.data.file;
+          let url = mapImageUrlInput;
+          if (file) {
+            const storageRef = ref(storage, `maps/${selectedProvince.id}/${selectedDistrict.id}/${file.name}`);
+            await uploadBytes(storageRef, file);
+            url = await getDownloadURL(storageRef);
+          }
+          const districtRef = doc(db, `provinces/${selectedProvince.id}/districts`, selectedDistrict.id);
+          await updateDoc(districtRef, { mapImageUrl: url });
         }
       }
-      setSuccess('Changes saved successfully!');
+      addToast('success', 'Changes saved successfully!');
       setHistory([]);
       setHistoryIndex(-1);
       saveHistoryToLocalStorage([], -1);
       setMapImageUrlInput('');
       setMediaImageUrlInput('');
     } catch (err) {
-      setError('Failed to save changes.');
+      addToast('error', 'Failed to save changes.');
       console.error(err);
     }
   };
 
+  const canEdit = (item: ProvinceData | DistrictData | null) => {
+    if (!item || !session?.user?.name) return false;
+    return adminId === 1 || (item.createdBy === session.user.name && !item.lock);
+  };
+
+  const toggleLock = async (item: ProvinceData | DistrictData, type: 'province' | 'district') => {
+    if (adminId !== 1) return;
+    const updatedItem = { ...item, lock: !item.lock };
+    if (type === 'province') {
+      recordHistory('updateProvince', updatedItem, item);
+      setProvinces(provinces.map((p) => (p.id === item.id ? updatedItem as ProvinceData : p)));
+      setSelectedProvince(updatedItem as ProvinceData);
+    } else {
+      recordHistory('updateDistrict', updatedItem, item);
+      const updatedDistricts = selectedProvince!.districts.map((d) => (d.id === item.id ? updatedItem as DistrictData : d));
+      setSelectedProvince({ ...selectedProvince!, districts: updatedDistricts });
+      setSelectedDistrict(updatedItem as DistrictData);
+    }
+  };
+
   const updateProvinceName = (province: ProvinceData, newName: string, newThaiName: string) => {
+    if (!canEdit(province)) return;
     const updatedProvince = { ...province, name: newName, thaiName: newThaiName };
     recordHistory('updateProvince', updatedProvince, province);
     setProvinces(provinces.map((p) => (p.id === province.id ? updatedProvince : p)));
@@ -378,6 +423,7 @@ export default function MapEditorPage() {
   };
 
   const updateDistrictCoordinates = (district: DistrictData, newCoords: DistrictData['coordinates']) => {
+    if (!canEdit(district)) return;
     const updatedDistrict = { ...district, coordinates: newCoords };
     recordHistory('updateDistrict', updatedDistrict, district);
     const updatedDistricts = selectedProvince?.districts.map((d) =>
@@ -388,6 +434,7 @@ export default function MapEditorPage() {
   };
 
   const updateDistrictColor = (district: DistrictData, newColor: string) => {
+    if (!canEdit(district)) return;
     const updatedDistrict = { ...district, historicalColor: newColor };
     recordHistory('updateDistrict', updatedDistrict, district);
     const updatedDistricts = selectedProvince?.districts.map((d) =>
@@ -398,83 +445,49 @@ export default function MapEditorPage() {
   };
 
   const uploadMapImage = async () => {
-    if (!selectedProvince || !selectedDistrict || !mapFile.file) return;
+    if (!selectedProvince || !selectedDistrict || !mapFile.file || !canEdit(selectedDistrict)) return;
     const previousData = { ...selectedDistrict };
     try {
-      const response = await fetch('/api/map-editor', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'mapImage',
-          data: {
-            provinceId: selectedProvince.id,
-            districtId: selectedDistrict.id,
-            file: {
-              name: mapFile.file.name,
-              type: mapFile.file.type,
-              buffer: await mapFile.file.arrayBuffer()
-            }
-          }
-        })
-      });
-      const { url } = await response.json();
+      const storageRef = ref(storage, `maps/${selectedProvince.id}/${selectedDistrict.id}/${mapFile.file.name}`);
+      await uploadBytes(storageRef, mapFile.file);
+      const url = await getDownloadURL(storageRef);
       recordHistory('uploadMap', { ...selectedDistrict, mapImageUrl: url }, previousData);
       setMapFile({ file: null, previewUrl: null, type: 'map' });
     } catch (err) {
-      setError('Failed to upload map image.');
+      addToast('error', 'Failed to upload map image.');
       console.error(err);
     }
   };
 
   const uploadMedia = async (district: DistrictData, periodIndex: number) => {
-    if (!selectedProvince || !mediaFile.file) return;
+    if (!selectedProvince || !mediaFile.file || !canEdit(district)) return;
     const previousData = { ...district };
     try {
-      const response = await fetch('/api/map-editor', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'media',
-          data: {
-            provinceId: selectedProvince.id,
-            districtId: district.id,
-            file: {
-              name: mediaFile.file.name,
-              type: mediaFile.file.type,
-              buffer: await mediaFile.file.arrayBuffer()
-            },
-            periodIndex
-          }
-        })
-      });
-      const { url } = await response.json();
-      
+      const storageRef = ref(storage, `media/${selectedProvince.id}/${district.id}/${mediaFile.file.name}`);
+      await uploadBytes(storageRef, mediaFile.file);
+      const url = await getDownloadURL(storageRef);
       const updatedPeriods = [...(district.historicalPeriods || [])];
-      const newMedia: Media = {
-        type: mediaFile.type,
-        url,
-        description: '',
-      };
+      const newMedia: Media = { type: mediaFile.type, url, altText: '', description: '' };
       updatedPeriods[periodIndex] = {
         ...updatedPeriods[periodIndex],
         media: [...(updatedPeriods[periodIndex].media || []), newMedia],
       };
       const updatedDistrict = { ...district, historicalPeriods: updatedPeriods };
       recordHistory('uploadMedia', { ...updatedDistrict, era: updatedPeriods[periodIndex].era }, previousData);
-      
       const updatedDistricts = selectedProvince.districts.map((d) =>
         d.id === district.id ? updatedDistrict : d
       );
       setSelectedProvince({ ...selectedProvince, districts: updatedDistricts });
       setSelectedDistrict(updatedDistrict);
-      setMediaFile({ file: null, previewUrl: null, type: activeTab });
+      setMediaFile({ file: null, previewUrl: null, type: activeTab === 'image' ? 'image' : 'video'});
     } catch (err) {
-      setError('Failed to upload media.');
+      addToast('error', 'Failed to upload media.');
       console.error(err);
     }
   };
 
   const updateDistrictData = (district: DistrictData, updatedData: Partial<DistrictData>) => {
+    if (!canEdit(district)) return;
     const updatedDistrict = { ...district, ...updatedData };
     recordHistory('updateDistrict', updatedDistrict, district);
     const updatedDistricts = selectedProvince?.districts.map((d) =>
@@ -486,33 +499,49 @@ export default function MapEditorPage() {
 
   const addNewProvince = () => {
     if (!newProvince.name || !newProvince.thaiName) {
-      setError('Please fill in all required fields for the new province.');
+      addToast('error', 'Please fill in all required fields for the new province.');
       return;
     }
-    const provinceId = newProvince.id || newProvince.name.toLowerCase().replace(/\s/g, '-');
-    const newProvinceData = {
+    const provinceId = newProvince.name.toLowerCase().replace(/\s/g, '-');
+    const newProvinceData: ProvinceData = {
       id: provinceId,
       name: newProvince.name,
       thaiName: newProvince.thaiName,
+      totalArea: newProvince.totalArea,
       districts: [],
+      historicalPeriods: [],
+      tags: [],
+      createdAt: Timestamp.now(),
+      createdBy: session?.user?.name || 'Admin',
+      lock: false,
+      version: 1,
+      collabSymbol: '',
+      backgroundSvgPath: null,
+      backgroundImageUrl: null,
+      backgroundDimensions: null,
     };
     recordHistory('addProvince', newProvinceData, null);
     setProvinces([...provinces, newProvinceData]);
-    setNewProvince({ name: '', thaiName: '', id: '' });
+    setNewProvince({ name: '', thaiName: '', totalArea: 0 });
+    setIsAddProvinceModalOpen(false);
   };
 
   const addNewDistrict = () => {
     if (!selectedProvince || !newDistrict.name || !newDistrict.thaiName) {
-      setError('Please fill in all required fields for the new district.');
+      addToast('error', 'Please fill in all required fields for the new district.');
       return;
     }
-    const newDistrictData = {
+    const newDistrictData: DistrictData = {
       ...newDistrict,
-      id: newDistrict.name?.toLowerCase().replace(/\s/g, '-'),
+      id: newDistrict.name?.toLowerCase().replace(/\s/g, '-') || '',
       historicalPeriods: newDistrict.historicalPeriods || [],
-    };
+      createdAt: Timestamp.now(),
+      createdBy: session?.user?.name || 'Admin',
+      lock: false,
+      version: 1,
+    } as DistrictData;
     recordHistory('addDistrict', newDistrictData, null);
-    const updatedDistricts = [...selectedProvince.districts, newDistrictData as DistrictData];
+    const updatedDistricts = [...selectedProvince.districts, newDistrictData];
     setSelectedProvince({ ...selectedProvince, districts: updatedDistricts });
     setNewDistrict({
       name: '',
@@ -520,199 +549,330 @@ export default function MapEditorPage() {
       historicalColor: 'rgba(255, 255, 255, 0.5)',
       coordinates: { x: 300, y: 200, width: 100, height: 100 },
       historicalPeriods: [],
+      createdAt: Timestamp.now(),
+      createdBy: session?.user?.name || 'Admin',
+      lock: false,
+      version: 1,
     });
+    setIsAddDistrictModalOpen(false);
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-background text-foreground p-4 md:p-8 pt-8 md:pt-8 flex justify-center items-center">
+  <div className="w-full max-w-screen-xl mx-auto">
+        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex justify-between items-center mb-8"
         >
           <h1 className="text-3xl md:text-4xl font-bold text-primary">Map Editor Dashboard</h1>
-          <div className="flex gap-2">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={undo}
-              className="px-4 py-2 bg-secondary text-background rounded-lg shadow-lg"
-              disabled={historyIndex <= 0}
-            >
-              <Undo2 className="w-4 h-4" />
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={redo}
-              className="px-4 py-2 bg-secondary text-background rounded-lg shadow-lg"
-              disabled={historyIndex >= history.length - 1}
-            >
-              <Redo2 className="w-4 h-4" />
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={saveChanges}
-              className="px-4 py-2 bg-success text-background rounded-lg shadow-lg"
-            >
-              <Save className="w-4 h-4" /> Save
-            </motion.button>
-          </div>
         </motion.div>
 
+        {/* Floating Controls */}
+        <motion.div
+          className="fixed top-16 right-4 z-50 flex gap-2"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={undo}
+            className="px-2 py-1 bg-background text-foreground rounded-lg shadow-lg"
+            disabled={historyIndex <= 0}
+          >
+            <Undo2 className="w-4 h-4" />
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={redo}
+            className="px-2 py-1 bg-background text-foreground rounded-lg shadow-lg"
+            disabled={historyIndex >= history.length - 1}
+          >
+            <Redo2 className="w-4 h-4" />
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={saveChanges}
+            className="px-2 py-1 bg-success text-center text-foreground rounded-lg shadow-lg"
+          >
+            <Save className="w-4 h-4" /> Save
+          </motion.button>
+        </motion.div>
+
+        {/* Toasts */}
         <AnimatePresence>
-          {loading && (
+          {toasts.map((toast) => (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed top-4 right-4 bg-accent text-background p-4 rounded-lg shadow-lg"
+              key={toast.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className={`fixed bottom-4 right-4 p-4 rounded-lg shadow-lg ${
+                toast.type === 'success' ? 'bg-success text-foreground' : 'bg-destructive text-foreground'
+              }`}
             >
-              Loading...
-            </motion.div>
-          )}
-          {error && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed top-4 right-4 bg-destructive text-background p-4 rounded-lg shadow-lg"
-            >
-              {error}
-              <button onClick={() => setError(null)} className="ml-2">
+              {toast.message}
+              <button onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))} className="ml-2">
                 <X className="w-4 h-4" />
               </button>
             </motion.div>
-          )}
-          {success && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed top-4 right-4 bg-success text-background p-4 rounded-lg shadow-lg"
-            >
-              {success}
-              <button onClick={() => setSuccess(null)} className="ml-2">
-                <X className="w-4 h-4" />
-              </button>
-            </motion.div>
-          )}
+          ))}
         </AnimatePresence>
 
+        {/* Province Selector */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h2 className="text-2xl font-semibold mb-4 text-foreground">Select Province</h2>
-          <div className="flex flex-wrap gap-4">
-            {provinces.map((province) => (
-              <div key={province.id} className="flex items-center gap-2">
-                {editingProvinceName === province.id ? (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={province.name}
-                      onChange={(e) => {
-                        const updatedProvince = { ...province, name: e.target.value };
-                        setProvinces(provinces.map((p) => (p.id === province.id ? updatedProvince : p)));
-                        setSelectedProvince(updatedProvince);
-                      }}
-                      className="p-2 bg-card text-foreground border border-primary rounded-lg"
-                    />
-                    <input
-                      type="text"
-                      value={province.thaiName}
-                      onChange={(e) => {
-                        const updatedProvince = { ...province, thaiName: e.target.value };
-                        setProvinces(provinces.map((p) => (p.id === province.id ? updatedProvince : p)));
-                        setSelectedProvince(updatedProvince);
-                      }}
-                      className="p-2 bg-card text-foreground border border-primary rounded-lg"
-                    />
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-semibold text-foreground">Select Province</h2>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setIsAddProvinceModalOpen(true)}
+              className="px-4 py-2 bg-primary text-background rounded-lg shadow-lg flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" /> Add Province
+            </motion.button>
+          </div>
+          <div className="flex items-center bg-card border border-primary rounded-lg focus-within:ring-2 focus-within:ring-primary">
+            {/* Search Icon */}
+            <Search className="w-4 h-4 text-foreground/70 ml-3" />
+            
+            {/* Search Input */}
+            <input
+              type="text"
+              placeholder="Search provinces..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full p-2 bg-card text-foreground border-0 rounded-lg focus:ring-0 focus:outline-none"
+            />
+          </div>
+          <div className="mt-2 max-h-60 overflow-y-auto bg-card rounded-lg shadow-lg">
+            {filteredProvinces.map((province) => (
+              <div key={province.id} className="flex items-center justify-between p-2 hover:bg-accent">
+                <div className="flex items-center gap-2">
+                  {editingProvinceName === province.id ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={province.name}
+                        onChange={(e) => {
+                          const updatedProvince = { ...province, name: e.target.value };
+                          setProvinces(provinces.map((p) => (p.id === province.id ? updatedProvince : p)));
+                          setSelectedProvince(updatedProvince);
+                        }}
+                        className="p-2 bg-card text-foreground border border-primary rounded-lg"
+                      />
+                      <input
+                        type="text"
+                        value={province.thaiName}
+                        onChange={(e) => {
+                          const updatedProvince = { ...province, thaiName: e.target.value };
+                          setProvinces(provinces.map((p) => (p.id === province.id ? updatedProvince : p)));
+                          setSelectedProvince(updatedProvince);
+                        }}
+                        className="p-2 bg-card text-foreground border border-primary rounded-lg"
+                      />
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => updateProvinceName(province, province.name, province.thaiName)}
+                        className="px-2 py-1 bg-success text-background rounded-lg shadow-lg"
+                      >
+                        Save
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setEditingProvinceName(null)}
+                        className="px-2 py-1 bg-destructive text-background rounded-lg shadow-lg"
+                      >
+                        Cancel
+                      </motion.button>
+                    </div>
+                  ) : (
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      onClick={() => updateProvinceName(province, province.name, province.thaiName)}
-                      className="px-4 py-2 bg-success text-background rounded-lg shadow-lg"
+                      onClick={() => {
+                        setSelectedProvince(province);
+                        setSelectedDistrict(province.districts[0] || null);
+                        setSelectedEra(province.districts[0]?.historicalPeriods[0]?.era || null);
+                      }}
+                      className={`px-4 py-2 rounded-lg shadow-lg ${
+                        selectedProvince?.id === province.id
+                          ? 'bg-primary text-background'
+                          : 'bg-secondary text-foreground'
+                      }`}
                     >
-                      Save
+                      {province.thaiName} ({province.name})
                     </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setEditingProvinceName(null)}
-                      className="px-4 py-2 bg-destructive text-background rounded-lg shadow-lg"
-                    >
-                      Cancel
-                    </motion.button>
-                  </div>
-                ) : (
+                  )}
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      setSelectedProvince(province);
-                      setSelectedDistrict(province.districts[0] || null);
-                      setSelectedEra(province.districts[0]?.historicalPeriods[0]?.era || null);
-                    }}
-                    className={`px-4 py-2 rounded-lg shadow-lg ${
-                      selectedProvince?.id === province.id
-                        ? 'bg-primary text-background'
-                        : 'bg-secondary text-foreground'
-                    }`}
+                    onClick={() => setEditingProvinceName(province.id)}
+                    className="px-2 py-2 bg-accent text-background rounded-lg shadow-lg"
+                    disabled={!canEdit(province)}
                   >
-                    {province.thaiName} ({province.name})
+                    <Edit className="w-4 h-4" />
+                  </motion.button>
+                </div>
+                {adminId === 1 && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => toggleLock(province, 'province')}
+                    className="px-2 py-2 bg-accent text-background rounded-lg shadow-lg"
+                  >
+                    {province.lock ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
                   </motion.button>
                 )}
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setEditingProvinceName(province.id)}
-                  className="px-2 py-2 bg-accent text-background rounded-lg shadow-lg"
-                >
-                  <Edit className="w-4 h-4" />
-                </motion.button>
               </div>
             ))}
-            <div className="p-4 bg-card rounded-lg shadow-lg">
-              <h3 className="text-lg font-semibold mb-2 text-foreground">Add New Province</h3>
-              <input
-                type="text"
-                placeholder="Province Name"
-                value={newProvince.name}
-                onChange={(e) => setNewProvince({ ...newProvince, name: e.target.value })}
-                className="w-full p-2 mb-2 bg-card text-foreground border border-primary rounded-lg"
-              />
-              <input
-                type="text"
-                placeholder="Thai Name"
-                value={newProvince.thaiName}
-                onChange={(e) => setNewProvince({ ...newProvince, thaiName: e.target.value })}
-                className="w-full p-2 mb-2 bg-card text-foreground border border-primary rounded-lg"
-              />
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={addNewProvince}
-                className="w-full px-4 py-2 bg-success text-background rounded-lg shadow-lg flex items-center justify-center gap-2"
-              >
-                <Plus className="w-4 h-4" /> Add Province
-              </motion.button>
-            </div>
           </div>
         </motion.div>
 
+        {/* Add Province Modal */}
+        <AnimatePresence>
+          {isAddProvinceModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            >
+              <motion.div
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.9 }}
+                className="bg-card p-6 rounded-lg shadow-lg w-full max-w-md"
+              >
+                <h3 className="text-lg font-semibold mb-4 text-foreground">Add New Province</h3>
+                <input
+                  type="text"
+                  placeholder="Province Name"
+                  value={newProvince.name}
+                  onChange={(e) => setNewProvince({ ...newProvince, name: e.target.value })}
+                  className="w-full p-2 mb-2 bg-card text-foreground border border-primary rounded-lg"
+                />
+                <input
+                  type="text"
+                  placeholder="Thai Name"
+                  value={newProvince.thaiName}
+                  onChange={(e) => setNewProvince({ ...newProvince, thaiName: e.target.value })}
+                  className="w-full p-2 mb-2 bg-card text-foreground border border-primary rounded-lg"
+                />
+                <input
+                  type="number"
+                  placeholder="Total Area (sq km)"
+                  value={newProvince.totalArea}
+                  onChange={(e) => setNewProvince({ ...newProvince, totalArea: Number(e.target.value) })}
+                  className="w-full p-2 mb-4 bg-card text-foreground border border-primary rounded-lg"
+                />
+                <div className="flex gap-2">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={addNewProvince}
+                    className="flex-1 px-4 py-2 bg-success text-background rounded-lg shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" /> Add
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setIsAddProvinceModalOpen(false)}
+                    className="flex-1 px-4 py-2 bg-destructive text-background rounded-lg shadow-lg"
+                  >
+                    Cancel
+                  </motion.button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Add District Modal */}
+        <AnimatePresence>
+          {isAddDistrictModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            >
+              <motion.div
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.9 }}
+                className="bg-card p-6 rounded-lg shadow-lg w-full max-w-md"
+              >
+                <h3 className="text-lg font-semibold mb-4 text-foreground">Add New District</h3>
+                <input
+                  type="text"
+                  placeholder="District Name"
+                  value={newDistrict.name || ''}
+                  onChange={(e) => setNewDistrict({ ...newDistrict, name: e.target.value })}
+                  className="w-full p-2 mb-2 bg-card text-foreground border border-primary rounded-lg"
+                />
+                <input
+                  type="text"
+                  placeholder="Thai Name"
+                  value={newDistrict.thaiName || ''}
+                  onChange={(e) => setNewDistrict({ ...newDistrict, thaiName: e.target.value })}
+                  className="w-full p-2 mb-4 bg-card text-foreground border border-primary rounded-lg"
+                />
+                <div className="flex gap-2">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={addNewDistrict}
+                    className="flex-1 px-4 py-2 bg-success text-background rounded-lg shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" /> Add
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setIsAddDistrictModalOpen(false)}
+                    className="flex-1 px-4 py-2 bg-destructive text-background rounded-lg shadow-lg"
+                  >
+                    Cancel
+                  </motion.button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {selectedProvince && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Section 1 - District Dynamic Editor */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               className="col-span-1 lg:col-span-1 bg-card p-6 rounded-xl shadow-lg"
             >
-              <h2 className="text-2xl font-semibold mb-4 text-foreground">Virtual Map Editor</h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-semibold text-foreground">Dynamic Map Editor</h2>
+                {selectedDistrict && adminId === 1 && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => toggleLock(selectedDistrict, 'district')}
+                    className="px-2 py-2 bg-accent text-background rounded-lg shadow-lg"
+                  >
+                    {selectedDistrict.lock ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                  </motion.button>
+                )}
+              </div>
               <div className="relative h-[50vh] rounded-xl overflow-hidden bg-glass-bg border border-glass-border shadow-[0_0_20px_rgba(0,212,255,0.2)]">
                 <div className="absolute top-4 right-4 z-20 bg-glass-bg rounded-full p-2 flex flex-col gap-2 shadow-[0_0_10px_rgba(0,212,255,0.3)]">
                   <motion.button
@@ -769,7 +929,6 @@ export default function MapEditorPage() {
                     <MapPin className="w-4 h-4" />
                   </motion.button>
                 </div>
-
                 <div className="absolute top-4 left-4 z-20 bg-glass-bg rounded-lg p-4 shadow-[0_0_10px_rgba(0,212,255,0.3)]">
                   <label className="block text-sm font-medium mb-2 text-foreground">Select Era</label>
                   <select
@@ -785,7 +944,6 @@ export default function MapEditorPage() {
                     ))}
                   </select>
                 </div>
-
                 <div
                   className="w-full h-full cursor-grab touch-pan-x touch-pan-y"
                   onMouseDown={handleMapMouseDown}
@@ -887,7 +1045,6 @@ export default function MapEditorPage() {
                   </motion.div>
                 </div>
               </div>
-
               {selectedDistrict && (
                 <div className="mt-4 p-4 bg-card rounded-lg shadow-lg">
                   <h3 className="text-lg font-semibold mb-2 text-foreground">Edit {selectedDistrict.thaiName}</h3>
@@ -904,6 +1061,7 @@ export default function MapEditorPage() {
                           })
                         }
                         className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
+                        disabled={!canEdit(selectedDistrict)}
                       />
                     </div>
                     <div>
@@ -918,6 +1076,7 @@ export default function MapEditorPage() {
                           })
                         }
                         className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
+                        disabled={!canEdit(selectedDistrict)}
                       />
                     </div>
                     <div>
@@ -932,6 +1091,7 @@ export default function MapEditorPage() {
                           })
                         }
                         className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
+                        disabled={!canEdit(selectedDistrict)}
                       />
                     </div>
                     <div>
@@ -946,6 +1106,7 @@ export default function MapEditorPage() {
                           })
                         }
                         className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
+                        disabled={!canEdit(selectedDistrict)}
                       />
                     </div>
                     <div className="col-span-2">
@@ -957,6 +1118,7 @@ export default function MapEditorPage() {
                           updateDistrictColor(selectedDistrict, hexToRgba(e.target.value, 0.5))
                         }
                         className="w-full h-10 p-1 bg-card text-foreground border border-primary rounded-lg"
+                        disabled={!canEdit(selectedDistrict)}
                       />
                     </div>
                     <div className="col-span-2">
@@ -966,6 +1128,7 @@ export default function MapEditorPage() {
                         accept="image/*"
                         onChange={handleMapFileChange}
                         className="w-full p-2 bg-card text-foreground border border-primary rounded-lg mb-2"
+                        disabled={!canEdit(selectedDistrict)}
                       />
                       {mapFile.previewUrl && (
                         <div className="mt-2">
@@ -996,8 +1159,9 @@ export default function MapEditorPage() {
                         type="text"
                         value={mapImageUrlInput}
                         onChange={(e) => setMapImageUrlInput(e.target.value)}
-                        placeholder="https://example.com/muang-chiangmai-district-map.png"
+                        placeholder="https://example.com/muang-district-map.png"
                         className="w-full p-2 bg-card text-foreground border border-primary rounded-lg mt-2"
+                        disabled={!canEdit(selectedDistrict)}
                       />
                     </div>
                   </div>
@@ -1005,149 +1169,229 @@ export default function MapEditorPage() {
               )}
             </motion.div>
 
+            {/* Section 2 - District Editor */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               className="col-span-1 lg:col-span-1 bg-card p-6 rounded-xl shadow-lg"
             >
-              <h2 className="text-2xl font-semibold mb-4 text-foreground">Data Editor</h2>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {selectedProvince.districts.map((district) => (
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-semibold text-foreground">Data Editor</h2>
+                <div className="flex gap-2">
                   <motion.button
-                    key={district.id}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      setSelectedDistrict(district);
-                      setSelectedEra(district.historicalPeriods[0]?.era || null);
-                    }}
+                    onClick={() => setEditMode('province')}
                     className={`px-4 py-2 rounded-lg shadow-lg ${
-                      selectedDistrict?.id === district.id
-                        ? 'bg-primary text-background'
-                        : 'bg-secondary text-foreground'
+                      editMode === 'province' ? 'bg-primary text-background' : 'bg-secondary text-foreground'
                     }`}
                   >
-                    {district.thaiName}
+                    Province
                   </motion.button>
-                ))}
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setEditMode('district')}
+                    className={`px-4 py-2 rounded-lg shadow-lg ${
+                      editMode === 'district' ? 'bg-primary text-background' : 'bg-secondary text-foreground'
+                    }`}
+                  >
+                    District
+                  </motion.button>
+                </div>
               </div>
-
-              <div className="p-4 bg-card rounded-lg shadow-lg mb-4">
-                <h3 className="text-lg font-semibold mb-2 text-foreground">Add New District</h3>
-                <input
-                  type="text"
-                  placeholder="District Name"
-                  value={newDistrict.name || ''}
-                  onChange={(e) => setNewDistrict({ ...newDistrict, name: e.target.value })}
-                  className="w-full p-2 mb-2 bg-card text-foreground border border-primary rounded-lg"
-                />
-                <input
-                  type="text"
-                  placeholder="Thai Name"
-                  value={newDistrict.thaiName || ''}
-                  onChange={(e) => setNewDistrict({ ...newDistrict, thaiName: e.target.value })}
-                  className="w-full p-2 mb-2 bg-card text-foreground border border-primary rounded-lg"
-                />
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={addNewDistrict}
-                  className="w-full px-4 py-2 bg-success text-background rounded-lg shadow-lg flex items-center justify-center gap-2"
-                >
-                  <Plus className="w-4 h-4" /> Add District
-                </motion.button>
-              </div>
-
-              {selectedDistrict && (
+              {editMode === 'district' && (
+                <>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {selectedProvince.districts.map((district) => (
+                      <motion.button
+                        key={district.id}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                          setSelectedDistrict(district);
+                          setSelectedEra(district.historicalPeriods[0]?.era || null);
+                        }}
+                        className={`px-4 py-2 rounded-lg shadow-lg ${
+                          selectedDistrict?.id === district.id
+                            ? 'bg-primary text-background'
+                            : 'bg-secondary text-foreground'
+                        }`}
+                      >
+                        {district.thaiName}
+                      </motion.button>
+                    ))}
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setIsAddDistrictModalOpen(true)}
+                    className="w-full px-4 py-2 bg-success text-background rounded-lg shadow-lg flex items-center justify-center gap-2 mb-4"
+                  >
+                    <Plus className="w-4 h-4" /> Add District
+                  </motion.button>
+                  {selectedDistrict && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-foreground">Name</label>
+                        <input
+                          type="text"
+                          value={selectedDistrict.name}
+                          onChange={(e) => updateDistrictData(selectedDistrict, { name: e.target.value })}
+                          className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
+                          disabled={!canEdit(selectedDistrict)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-foreground">Thai Name</label>
+                        <input
+                          type="text"
+                          value={selectedDistrict.thaiName}
+                          onChange={(e) => updateDistrictData(selectedDistrict, { thaiName: e.target.value })}
+                          className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
+                          disabled={!canEdit(selectedDistrict)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-foreground">Cultural Significance</label>
+                        <textarea
+                          value={selectedDistrict.culturalSignificance || ''}
+                          onChange={(e) =>
+                            updateDistrictData(selectedDistrict, { culturalSignificance: e.target.value })
+                          }
+                          className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
+                          disabled={!canEdit(selectedDistrict)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-foreground">Visitor Tips</label>
+                        <textarea
+                          value={selectedDistrict.visitorTips || ''}
+                          onChange={(e) => updateDistrictData(selectedDistrict, { visitorTips: e.target.value })}
+                          className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
+                          disabled={!canEdit(selectedDistrict)}
+                        />
+                      </div>
+                      <div className="flex flex-col justify-center items-center mt-60">
+                        <label className="block text-sm font-medium text-foreground">Created By</label>
+                        <input
+                          type="text"
+                          value={selectedDistrict.createdBy}
+                          disabled
+                          className="w-fit p-2 mt-2 text-center text-foreground border border-primary rounded-full"
+                        />
+                      </div>
+                      {selectedDistrict.collab && (
+                        <div className="p-4 bg-accent rounded-lg">
+                          <h3 className="text-lg font-semibold mb-2 text-foreground">Collab Data</h3>
+                          <div className="flex items-center gap-2 mb-2">
+                            <label className="text-sm font-medium text-foreground">Enabled</label>
+                            <input
+                              type="checkbox"
+                              checked={selectedDistrict.collab.isActive}
+                              onChange={(e) =>
+                                updateDistrictData(selectedDistrict, {
+                                  collab: { ...selectedDistrict.collab!, isActive: e.target.checked },
+                                })
+                              }
+                              className="h-4 w-4"
+                              disabled={!canEdit(selectedDistrict)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-foreground">Novel Title</label>
+                            <input
+                              type="text"
+                              value={selectedDistrict.collab.novelTitle}
+                              onChange={(e) =>
+                                updateDistrictData(selectedDistrict, {
+                                  collab: { ...selectedDistrict.collab!, novelTitle: e.target.value },
+                                })
+                              }
+                              className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
+                              disabled={!canEdit(selectedDistrict)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-foreground">Story Snippet</label>
+                            <textarea
+                              value={selectedDistrict.collab.storylineSnippet}
+                              onChange={(e) =>
+                                updateDistrictData(selectedDistrict, {
+                                  collab: { ...selectedDistrict.collab!, storylineSnippet: e.target.value },
+                                })
+                              }
+                              className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
+                              disabled={!canEdit(selectedDistrict)}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+              {editMode === 'province' && (
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground">Name</label>
                     <input
                       type="text"
-                      value={selectedDistrict.name}
-                      onChange={(e) => updateDistrictData(selectedDistrict, { name: e.target.value })}
+                      value={selectedProvince.name}
+                      onChange={(e) => {
+                        const updatedProvince = { ...selectedProvince, name: e.target.value };
+                        recordHistory('updateProvince', updatedProvince, selectedProvince);
+                        setProvinces(provinces.map((p) => (p.id === selectedProvince.id ? updatedProvince : p)));
+                        setSelectedProvince(updatedProvince);
+                      }}
                       className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
+                      disabled={!canEdit(selectedProvince)}
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground">Thai Name</label>
                     <input
                       type="text"
-                      value={selectedDistrict.thaiName}
-                      onChange={(e) => updateDistrictData(selectedDistrict, { thaiName: e.target.value })}
+                      value={selectedProvince.thaiName}
+                      onChange={(e) => {
+                        const updatedProvince = { ...selectedProvince, thaiName: e.target.value };
+                        recordHistory('updateProvince', updatedProvince, selectedProvince);
+                        setProvinces(provinces.map((p) => (p.id === selectedProvince.id ? updatedProvince : p)));
+                        setSelectedProvince(updatedProvince);
+                      }}
                       className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
+                      disabled={!canEdit(selectedProvince)}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-foreground">Cultural Significance</label>
-                    <textarea
-                      value={selectedDistrict.culturalSignificance || ''}
-                      onChange={(e) =>
-                        updateDistrictData(selectedDistrict, { culturalSignificance: e.target.value })
-                      }
+                    <label className="block text-sm font-medium text-foreground">Total Area (sq km)</label>
+                    <input
+                      type="number"
+                      value={selectedProvince.totalArea}
+                      onChange={(e) => {
+                        const updatedProvince = { ...selectedProvince, totalArea: Number(e.target.value) };
+                        recordHistory('updateProvince', updatedProvince, selectedProvince);
+                        setProvinces(provinces.map((p) => (p.id === selectedProvince.id ? updatedProvince : p)));
+                        setSelectedProvince(updatedProvince);
+                      }}
                       className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
+                      disabled={!canEdit(selectedProvince)}
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground">Visitor Tips</label>
-                    <textarea
-                      value={selectedDistrict.visitorTips || ''}
-                      onChange={(e) =>
-                        updateDistrictData(selectedDistrict, { visitorTips: e.target.value })
-                      }
-                      className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
+                  <div className="flex flex-col justify-center items-center mt-96">
+                    <label className="block text-sm font-medium text-foreground">Created By</label>
+                    <input
+                      type="text"
+                      value={selectedProvince.createdBy}
+                      disabled
+                      className="w-fit p-2 mt-2 text-center text-foreground border border-primary rounded-full"
                     />
                   </div>
-                  {selectedDistrict.collab && (
-                    <div className="p-4 bg-accent rounded-lg">
-                      <h3 className="text-lg font-semibold mb-2 text-foreground">Collab Data</h3>
-                      <div className="flex items-center gap-2 mb-2">
-                        <label className="text-sm font-medium text-foreground">Enabled</label>
-                        <input
-                          type="checkbox"
-                          checked={selectedDistrict.collab.isActive}
-                          onChange={(e) =>
-                            updateDistrictData(selectedDistrict, {
-                              collab: { ...selectedDistrict.collab!, isActive: e.target.checked },
-                            })
-                          }
-                          className="h-4 w-4"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-foreground">Novel Title</label>
-                        <input
-                          type="text"
-                          value={selectedDistrict.collab.novelTitle}
-                          onChange={(e) =>
-                            updateDistrictData(selectedDistrict, {
-                              collab: { ...selectedDistrict.collab!, novelTitle: e.target.value },
-                            })
-                          }
-                          className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-foreground">Story Snippet</label>
-                        <textarea
-                          value={selectedDistrict.collab.storylineSnippet}
-                          onChange={(e) =>
-                            updateDistrictData(selectedDistrict, {
-                              collab: {
-                                ...selectedDistrict.collab!,
-                                storylineSnippet: e.target.value,
-                              },
-                            })
-                          }
-                          className="w-full p-2 bg-card text-foreground border border-primary rounded-lg"
-                        />
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </motion.div>
 
+            {/* Section 3 - Media Editor */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -1198,17 +1442,30 @@ export default function MapEditorPage() {
                                 />
                               )}
                               <div className="flex-1">
-                                <p className="text-sm truncate overflow-hidden text-ellipsis">
-                                  {media.description}
-                                </p>
-                                <p className="text-xs text-foreground/70 truncate overflow-hidden text-ellipsis">
-                                  {media.url}
-                                </p>
+                                <input
+                                  type="text"
+                                  value={media.description}
+                                  onChange={(e) => {
+                                    const updatedPeriods = [...selectedDistrict.historicalPeriods];
+                                    updatedPeriods[index].media[mediaIndex].description = e.target.value;
+                                    updateDistrictData(selectedDistrict, { historicalPeriods: updatedPeriods });
+                                  }}
+                                  className="w-full p-1 bg-card text-foreground border border-primary rounded-lg"
+                                  placeholder="Description"
+                                  disabled={!canEdit(selectedDistrict)}
+                                />
+                                <p className="text-xs text-foreground/70 truncate">{media.url}</p>
                               </div>
                               <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
+                                onClick={() => {
+                                  const updatedPeriods = [...selectedDistrict.historicalPeriods];
+                                  updatedPeriods[index].media.splice(mediaIndex, 1);
+                                  updateDistrictData(selectedDistrict, { historicalPeriods: updatedPeriods });
+                                }}
                                 className="p-2 bg-destructive text-background rounded-lg"
+                                disabled={!canEdit(selectedDistrict)}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </motion.button>
@@ -1223,7 +1480,8 @@ export default function MapEditorPage() {
                                 updatedPeriods[index] = { ...period, description: e.target.value };
                                 updateDistrictData(selectedDistrict, { historicalPeriods: updatedPeriods });
                               }}
-                              className="w-full h-24 p-2 bg-card text-foreground border border-primary rounded-lg resize-none whitespace-pre-wrap overflow-auto"
+                              className="w-full h-24 p-2 bg-card text-foreground border border-primary rounded-lg resize-none"
+                              disabled={!canEdit(selectedDistrict)}
                             />
                           </div>
                         )}
@@ -1233,15 +1491,10 @@ export default function MapEditorPage() {
                           </label>
                           <input
                             type="file"
-                            accept={
-                              activeTab === 'image'
-                                ? 'image/*'
-                                : activeTab === 'video'
-                                ? 'video/*'
-                                : '*'
-                            }
+                            accept={activeTab === 'image' ? 'image/*' : activeTab === 'video' ? 'video/*' : '*'}
                             onChange={handleMediaFileChange}
                             className="w-full p-2 bg-card text-foreground border border-primary rounded-lg mb-2"
+                            disabled={!canEdit(selectedDistrict)}
                           />
                           {mediaFile.previewUrl && (
                             <div className="mt-2">
@@ -1271,15 +1524,14 @@ export default function MapEditorPage() {
                           )}
                           {activeTab === 'image' && (
                             <>
-                              <label className="block text-sm font-medium mt-4 text-foreground">
-                                Or Enter Image URL
-                              </label>
+                              <label className="block text-sm font-medium mt-4 text-foreground">Or Enter Image URL</label>
                               <input
                                 type="text"
                                 value={mediaImageUrlInput}
                                 onChange={(e) => setMediaImageUrlInput(e.target.value)}
-                                placeholder="https://example.com/muang-chiangmai-district-map.png"
+                                placeholder="https://example.com/image.jpg"
                                 className="w-full p-2 bg-card text-foreground border border-primary rounded-lg mt-2"
+                                disabled={!canEdit(selectedDistrict)}
                               />
                             </>
                           )}

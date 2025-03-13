@@ -1,70 +1,127 @@
 // scripts/seedFirebase.ts
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { provinces } from '../lib/provinces';
+import { District, HistoricalPeriod, Media, CollabData } from '../lib/districts';
 
-// Initialize Firebase Admin SDK
-const admin = require("firebase-admin");
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+};
 
-const serviceAccount = require("./path/to/serviceAccountKey.json");
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-}
+// Helper function to normalize Timestamp objects
+const normalizeTimestamp = (value: any): any => {
+  if (value instanceof Timestamp) {
+    return Timestamp.fromMillis(value.toMillis());
+  }
+  return value;
+};
 
-const db = admin.firestore();
+// Helper function to recursively normalize Timestamps in an object
+const normalizeData = (data: any): any => {
+  if (data === null || data === undefined) return data;
+  if (data instanceof Timestamp) return normalizeTimestamp(data);
+  if (Array.isArray(data)) return data.map(normalizeData);
+  if (typeof data === 'object') {
+    const normalized: { [key: string]: any } = {};
+    for (const key in data) {
+      normalized[key] = normalizeData(data[key]);
+    }
+    return normalized;
+  }
+  return data;
+};
 
-// Function to seed the provinces data into Firestore
 const seedFirebase = async () => {
   console.log('Starting to seed Firebase with provinces data...');
 
   try {
-    // Iterate over each province in the static data
     for (const province of provinces) {
       console.log(`Seeding province: ${province.name} (${province.thaiName})`);
 
-      // Prepare the province data (without districts array)
-      const provinceData = {
+      // Prepare province data and normalize Timestamps
+      const provinceData = normalizeData({
         id: province.id,
         name: province.name,
         thaiName: province.thaiName,
-      };
+        totalArea: province.totalArea,
+        historicalPeriods: province.historicalPeriods.map((period: HistoricalPeriod) => ({
+          era: period.era,
+          startYear: period.startYear,
+          endYear: period.endYear,
+          yearRange: period.yearRange,
+          color: period.color,
+          description: period.description,
+          events: period.events,
+          landmarks: period.landmarks,
+          media: period.media.map((mediaItem: Media) => ({
+            type: mediaItem.type,
+            url: mediaItem.url,
+            altText: mediaItem.altText,
+            description: mediaItem.description,
+            license: mediaItem.license || null,
+            createdAt: mediaItem.createdAt || null,
+          })),
+          sources: period.sources || null,
+        })),
+        collabSymbol: province.collabSymbol || null,
+        tags: province.tags,
+        createdAt: province.createdAt || Timestamp.now(),
+        createdBy: province.createdBy,
+        lock: province.lock,
+        version: province.version,
+        backgroundSvgPath: province.backgroundSvgPath || null,
+        backgroundImageUrl: province.backgroundImageUrl || null,
+        backgroundDimensions: province.backgroundDimensions || null,
+      });
 
-      // Reference to the province document in the 'provinces' collection
-      const provinceRef = db.collection('provinces').doc(province.id);
-
-      // Upload the province data to Firestore
-      await provinceRef.set(provinceData);
+      // Set province document
+      const provinceRef = doc(db, 'provinces', province.id);
+      await setDoc(provinceRef, provinceData);
       console.log(`Successfully seeded province document: ${province.name}`);
 
-      // Reference to the 'districts' subcollection under the province
-      const districtsCollection = provinceRef.collection('districts');
-
-      // Iterate over each district in the province
+      // Seed districts as a subcollection
+      const districtsCollection = collection(provinceRef, 'districts');
       for (const district of province.districts) {
         console.log(`Seeding district: ${district.name} (${district.thaiName}) under province: ${province.name}`);
 
-        // Prepare the district data (updated to match new District interface)
-        const districtData = {
+        // Prepare district data and normalize Timestamps
+        const districtData = normalizeData({
           id: district.id,
           name: district.name,
           thaiName: district.thaiName,
-          mapPath: district.mapPath || null, // Updated to handle optional mapPath
-          mapImageUrl: district.mapImageUrl || null, // Added mapImageUrl field
-          coordinates: district.coordinates || { x: 0, y: 0, width: 0, height: 0 }, // Updated coordinates with width and height
+          mapImageUrl: district.mapImageUrl || null,
+          googleMapsUrl: district.googleMapsUrl || null,
+          coordinates: district.coordinates,
           historicalColor: district.historicalColor,
-          historicalPeriods: district.historicalPeriods.map((period) => ({
+          historicalPeriods: district.historicalPeriods.map((period: HistoricalPeriod) => ({
             era: period.era,
+            startYear: period.startYear,
+            endYear: period.endYear,
             yearRange: period.yearRange,
             color: period.color,
             description: period.description,
             events: period.events,
             landmarks: period.landmarks,
-            media: period.media.map((mediaItem) => ({
+            media: period.media.map((mediaItem: Media) => ({
               type: mediaItem.type,
               url: mediaItem.url,
-              description: mediaItem.description || null,
+              altText: mediaItem.altText,
+              description: mediaItem.description,
+              license: mediaItem.license || null,
+              createdAt: mediaItem.createdAt || null,
             })),
+            sources: period.sources || null,
           })),
           collab: district.collab
             ? {
@@ -72,21 +129,37 @@ const seedFirebase = async () => {
                 storylineSnippet: district.collab.storylineSnippet,
                 characters: district.collab.characters,
                 relatedLandmarks: district.collab.relatedLandmarks,
-                media: district.collab.media.map((mediaItem) => ({
+                media: district.collab.media.map((mediaItem: Media) => ({
                   type: mediaItem.type,
                   url: mediaItem.url,
-                  description: mediaItem.description || null,
+                  altText: mediaItem.altText,
+                  description: mediaItem.description,
+                  license: mediaItem.license || null,
+                  createdAt: mediaItem.createdAt || null,
                 })),
                 isActive: district.collab.isActive,
+                author: district.collab.author || null,
+                publicationDate: district.collab.publicationDate || null,
+                externalLink: district.collab.externalLink || null,
+                duplicatedDistricts: district.collab.duplicatedDistricts || null,
+                duplicatedProvinces: district.collab.duplicatedProvinces || null,
               }
-            : null, // Added collab field as optional
+            : null,
           culturalSignificance: district.culturalSignificance || null,
           visitorTips: district.visitorTips || null,
           interactiveFeatures: district.interactiveFeatures || null,
-        };
+          areaSize: district.areaSize || null,
+          climate: district.climate || null,
+          population: district.population || null,
+          tags: district.tags || null,
+          createdAt: district.createdAt || Timestamp.now(),
+          createdBy: district.createdBy,
+          lock: district.lock,
+          version: district.version,
+        });
 
-        // Upload the district data to the 'districts' subcollection
-        await districtsCollection.doc(district.id).set(districtData);
+        // Set district document
+        await setDoc(doc(districtsCollection, district.id), districtData);
         console.log(`Successfully seeded district: ${district.name}`);
       }
     }
@@ -95,10 +168,6 @@ const seedFirebase = async () => {
   } catch (error) {
     console.error('Error seeding data to Firestore:', error);
     process.exit(1);
-  } finally {
-    // Close the Firebase app
-    await admin.app().delete();
-    console.log('Firebase Admin SDK connection closed.');
   }
 };
 

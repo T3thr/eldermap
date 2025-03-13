@@ -72,7 +72,7 @@ export default function ThemeToggle({
   return (
     <div className="flex items-center gap-2">
       {showLabel && (
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors duration-300">
+        <span className="text-sm font-medium text-foreground transition-colors duration-300">
           {isDark ? "Dark" : "Light"}
         </span>
       )}
@@ -82,7 +82,7 @@ export default function ThemeToggle({
         onClick={toggleTheme}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        whileHover={{ scale: 1.05 }}
+        whileHover={{ scale: 1.0 }}
         whileTap={{ scale: 0.95 }}
       >
         <motion.div 

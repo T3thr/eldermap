@@ -73,7 +73,7 @@ export default function Header() {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-md border-b border-border">
+      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b border-glass-border">
         <motion.div 
           className="container mx-auto px-4 py-3 flex items-center justify-between"
           initial={{ y: -20, opacity: 0 }}

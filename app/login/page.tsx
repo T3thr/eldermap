@@ -1,8 +1,9 @@
 // app/login/page.tsx
 "use client";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { useState, useEffect } from "react";
+import { signIn, useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";  // Import useRouter for navigation
 import Link from "next/link";
 
 export default function AdminLogin() {
@@ -12,6 +13,16 @@ export default function AdminLogin() {
   const [password, setPassword] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
+  
+  const { data: session, status } = useSession(); // Use useSession to check session status
+  const router = useRouter(); // To handle redirecting
+
+  // Check if the user is already logged in and redirect
+  useEffect(() => {
+    if (session) {
+      router.push("/"); // Redirect to homepage if logged in
+    }
+  }, [session, router]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

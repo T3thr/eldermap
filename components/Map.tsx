@@ -144,7 +144,7 @@ export default function Map({
           whileTap={{ scale: 0.9 }}
           onClick={() => setShowGrid((prev) => !prev)}
           className={`w-10 h-10 flex items-center justify-center rounded-full ${
-            showGrid ? "bg-primary/30 text-primary" : "bg-card text-foreground/70"
+            showGrid ? "bg-primary/30 text-primary" : "bg-card text-foreground 🙂/70"
           } hover:bg-primary/40 border border-primary/50 touch-manipulation`}
           aria-label={showGrid ? "Hide grid" : "Show grid"}
         >
@@ -295,17 +295,7 @@ export default function Map({
                     role="button"
                     aria-label={`Toggle ${district.name}`}
                   >
-                    {district.mapPath ? (
-                      <polygon
-                        points={district.mapPath}
-                        fill={getCollabColor(district)}
-                        stroke="var(--foreground)"
-                        strokeWidth={isSelected ? 3 : 1.5}
-                        strokeOpacity={isSelected ? 0.9 : 0.4}
-                        className="transition-all duration-300"
-                        style={{ filter: isSelected ? "url(#glow)" : "" }}
-                      />
-                    ) : district.mapImageUrl ? (
+                    {district.mapImageUrl ? (
                       <image
                         href={district.mapImageUrl}
                         x={x}
@@ -313,6 +303,19 @@ export default function Map({
                         width={width}
                         height={height}
                         preserveAspectRatio="xMidYMid slice"
+                        opacity={0.8}
+                        style={{
+                          filter: isSelected ? "url(#glow)" : "",
+                          fill: getCollabColor(district),
+                        }}
+                        className="transition-all duration-300"
+                      />
+                    ) : (
+                      <rect
+                        x={x}
+                        y={y}
+                        width={width}
+                        height={height}
                         fill={getCollabColor(district)}
                         stroke="var(--foreground)"
                         strokeWidth={isSelected ? 3 : 1.5}
@@ -320,7 +323,7 @@ export default function Map({
                         className="transition-all duration-300"
                         style={{ filter: isSelected ? "url(#glow)" : "" }}
                       />
-                    ) : null}
+                    )}
                     <text
                       x={x + width / 2}
                       y={y + height / 2}
@@ -345,7 +348,6 @@ export default function Map({
   );
 }
 
-// Helper functions
 function isColorDark(color: string): boolean {
   let r = 0,
     g = 0,

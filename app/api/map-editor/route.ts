@@ -1,27 +1,26 @@
 // app/api/map-editor/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getFirestore, collection, getDocs, updateDoc, doc, setDoc, addDoc, deleteDoc } from "firebase/firestore";
+import { getFirestore, collection, getDocs, updateDoc, doc, setDoc, addDoc, deleteDoc, Timestamp } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { initializeApp, getApps } from "firebase/app";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/options"; // Adjust path as needed
 
 // Firebase configuration
 const firebaseConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-    measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
-  };
-  
-// Log config for debugging
-console.log("Firebase Config:", firebaseConfig);
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+};
 
 // Initialize Firebase only if not already initialized
 if (!getApps().length) {
-  if (!firebaseConfig || !firebaseConfig.projectId) {
-    throw new Error("Firebase configuration is invalid or missing projectId");
+  if (!firebaseConfig.projectId) {
+    throw new Error("Firebase configuration is missing projectId");
   }
   initializeApp(firebaseConfig);
 }
@@ -29,15 +28,28 @@ if (!getApps().length) {
 const db = getFirestore();
 const storage = getStorage();
 
+// Utility function to check admin permissions
+const canEdit = async (session: any, item: any): Promise<boolean> => {
+  if (!session?.user?.id || !session?.user?.name) return false;
+  const adminId = session.user.id === "1" ? 1 : 2; // Admin1 has ID 1
+  return adminId === 1 || (item.createdBy === session.user.name && !item.lock);
+};
+
 // GET: Fetch provinces and districts
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const provinceId = searchParams.get("provinceId");
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   try {
     if (provinceId) {
-      const provinceDoc = await getDocs(collection(db, `provinces/${provinceId}/districts`));
-      const districts = provinceDoc.docs.map((doc) => ({
+      const provinceRef = doc(db, "provinces", provinceId);
+      const provinceSnap = await getDocs(collection(db, `provinces/${provinceId}/districts`));
+      const districts = provinceSnap.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
@@ -69,6 +81,11 @@ export async function GET(req: NextRequest) {
 
 // POST: Create new province, district, or media
 export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { type, data } = await req.json();
 
@@ -77,13 +94,26 @@ export async function POST(req: NextRequest) {
     }
 
     if (type === "province") {
-      const provinceRef = doc(db, "provinces", data.id || data.name.toLowerCase().replace(/\s/g, "-"));
-      await setDoc(provinceRef, {
+      const provinceId = data.id || data.name.toLowerCase().replace(/\s/g, "-");
+      const provinceData = {
+        id: provinceId,
         name: data.name,
         thaiName: data.thaiName,
-        createdAt: new Date().toISOString(),
-      });
-      return NextResponse.json({ id: provinceRef.id, ...data, districts: [] }, { status: 201 });
+        totalArea: data.totalArea || 0,
+        historicalPeriods: data.historicalPeriods || [],
+        tags: data.tags || [],
+        createdAt: Timestamp.now(),
+        createdBy: session.user.name,
+        lock: false,
+        version: 1,
+        collabSymbol: data.collabSymbol || "",
+        backgroundSvgPath: data.backgroundSvgPath || null,
+        backgroundImageUrl: data.backgroundImageUrl || null,
+        backgroundDimensions: data.backgroundDimensions || null,
+      };
+      const provinceRef = doc(db, "provinces", provinceId);
+      await setDoc(provinceRef, provinceData);
+      return NextResponse.json({ ...provinceData, districts: [] }, { status: 201 });
     }
 
     if (type === "district") {
@@ -91,11 +121,25 @@ export async function POST(req: NextRequest) {
       if (!provinceId) {
         return NextResponse.json({ error: "Province ID is required" }, { status: 400 });
       }
-      const districtRef = await addDoc(collection(db, `provinces/${provinceId}/districts`), {
-        ...districtData,
-        createdAt: new Date().toISOString(),
-      });
-      return NextResponse.json({ id: districtRef.id, ...districtData }, { status: 201 });
+      const districtId = districtData.id || districtData.name.toLowerCase().replace(/\s/g, "-");
+      const newDistrict = {
+        id: districtId,
+        name: districtData.name,
+        thaiName: districtData.thaiName,
+        mapImageUrl: districtData.mapImageUrl || "",
+        googleMapsUrl: districtData.googleMapsUrl || "",
+        coordinates: districtData.coordinates || { x: 300, y: 200, width: 100, height: 100 },
+        historicalColor: districtData.historicalColor || "rgba(255, 255, 255, 0.5)",
+        historicalPeriods: districtData.historicalPeriods || [],
+        createdAt: Timestamp.now(),
+        createdBy: session.user.name,
+        lock: false,
+        version: 1,
+        ...(districtData.collab && { collab: districtData.collab }),
+      };
+      const districtRef = doc(db, `provinces/${provinceId}/districts`, districtId);
+      await setDoc(districtRef, newDistrict);
+      return NextResponse.json(newDistrict, { status: 201 });
     }
 
     if (type === "media") {
@@ -104,28 +148,31 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
       }
 
-      const fileRef = ref(storage, `media/${provinceId}/${districtId}/${Date.now()}_${file.name}`);
-      await uploadBytes(fileRef, Buffer.from(file.buffer));
-      const url = await getDownloadURL(fileRef);
-
       const districtRef = doc(db, `provinces/${provinceId}/districts`, districtId);
       const districtSnap = await getDocs(collection(db, `provinces/${provinceId}/districts`));
       const districtData = districtSnap.docs.find((d) => d.id === districtId)?.data();
 
-      if (!districtData) {
-        return NextResponse.json({ error: "District not found" }, { status: 404 });
+      if (!districtData || !(await canEdit(session, districtData))) {
+        return NextResponse.json({ error: "District not found or permission denied" }, { status: 403 });
       }
+
+      const fileBuffer = Buffer.from(file.buffer);
+      const fileRef = ref(storage, `media/${provinceId}/${districtId}/${Date.now()}_${file.name}`);
+      await uploadBytes(fileRef, fileBuffer);
+      const url = await getDownloadURL(fileRef);
 
       const historicalPeriods = districtData.historicalPeriods || [];
       historicalPeriods[periodIndex].media = historicalPeriods[periodIndex].media || [];
       historicalPeriods[periodIndex].media.push({
         type: file.type.includes("image") ? "image" : "video",
         url,
+        altText: "",
         description: "",
+        createdAt: Timestamp.now(),
       });
 
       await updateDoc(districtRef, { historicalPeriods });
-      return NextResponse.json({ url });
+      return NextResponse.json({ url }, { status: 201 });
     }
 
     return NextResponse.json({ error: "Invalid type" }, { status: 400 });
@@ -137,6 +184,11 @@ export async function POST(req: NextRequest) {
 
 // PUT: Update province, district, or map image
 export async function PUT(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { type, id, data, provinceId } = await req.json();
 
@@ -146,11 +198,20 @@ export async function PUT(req: NextRequest) {
 
     if (type === "province") {
       const provinceRef = doc(db, "provinces", id);
-      await updateDoc(provinceRef, {
+      const provinceSnap = (await getDocs(collection(db, "provinces"))).docs.find((d) => d.id === id);
+      const provinceData = provinceSnap?.data();
+
+      if (!provinceData || !(await canEdit(session, provinceData))) {
+        return NextResponse.json({ error: "Province not found or permission denied" }, { status: 403 });
+      }
+
+      const updatedProvince = {
+        ...provinceData,
         ...data,
-        updatedAt: new Date().toISOString(),
-      });
-      return NextResponse.json({ id, ...data });
+        updatedAt: Timestamp.now(),
+      };
+      await updateDoc(provinceRef, updatedProvince);
+      return NextResponse.json(updatedProvince);
     }
 
     if (type === "district") {
@@ -158,11 +219,20 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: "Province ID is required" }, { status: 400 });
       }
       const districtRef = doc(db, `provinces/${provinceId}/districts`, id);
-      await updateDoc(districtRef, {
+      const districtSnap = await getDocs(collection(db, `provinces/${provinceId}/districts`));
+      const districtData = districtSnap.docs.find((d) => d.id === id)?.data();
+
+      if (!districtData || !(await canEdit(session, districtData))) {
+        return NextResponse.json({ error: "District not found or permission denied" }, { status: 403 });
+      }
+
+      const updatedDistrict = {
+        ...districtData,
         ...data,
-        updatedAt: new Date().toISOString(),
-      });
-      return NextResponse.json({ id, ...data });
+        updatedAt: Timestamp.now(),
+      };
+      await updateDoc(districtRef, updatedDistrict);
+      return NextResponse.json(updatedDistrict);
     }
 
     if (type === "mapImage") {
@@ -171,19 +241,27 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
       }
 
+      const districtRef = doc(db, `provinces/${provinceId}/districts`, districtId);
+      const districtSnap = await getDocs(collection(db, `provinces/${provinceId}/districts`));
+      const districtData = districtSnap.docs.find((d) => d.id === districtId)?.data();
+
+      if (!districtData || !(await canEdit(session, districtData))) {
+        return NextResponse.json({ error: "District not found or permission denied" }, { status: 403 });
+      }
+
       let url;
       if (file.buffer) {
+        const fileBuffer = Buffer.from(file.buffer);
         const fileRef = ref(storage, `maps/${provinceId}/${districtId}/${Date.now()}_${file.name}`);
-        await uploadBytes(fileRef, Buffer.from(file.buffer));
+        await uploadBytes(fileRef, fileBuffer);
         url = await getDownloadURL(fileRef);
       } else if (file.url) {
-        url = file.url; // Use provided URL directly
+        url = file.url;
       } else {
         return NextResponse.json({ error: "File or URL required" }, { status: 400 });
       }
 
-      const districtRef = doc(db, `provinces/${provinceId}/districts`, districtId);
-      await updateDoc(districtRef, { mapImageUrl: url });
+      await updateDoc(districtRef, { mapImageUrl: url, updatedAt: Timestamp.now() });
       return NextResponse.json({ url });
     }
 
@@ -196,6 +274,11 @@ export async function PUT(req: NextRequest) {
 
 // DELETE: Delete province or district
 export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type");
   const id = searchParams.get("id");
@@ -207,7 +290,15 @@ export async function DELETE(req: NextRequest) {
     }
 
     if (type === "province") {
-      await deleteDoc(doc(db, "provinces", id));
+      const provinceRef = doc(db, "provinces", id);
+      const provinceSnap = (await getDocs(collection(db, "provinces"))).docs.find((d) => d.id === id);
+      const provinceData = provinceSnap?.data();
+
+      if (!provinceData || !(await canEdit(session, provinceData))) {
+        return NextResponse.json({ error: "Province not found or permission denied" }, { status: 403 });
+      }
+
+      await deleteDoc(provinceRef);
       return new NextResponse(null, { status: 204 });
     }
 
@@ -215,7 +306,15 @@ export async function DELETE(req: NextRequest) {
       if (!provinceId) {
         return NextResponse.json({ error: "Province ID is required" }, { status: 400 });
       }
-      await deleteDoc(doc(db, `provinces/${provinceId}/districts`, id));
+      const districtRef = doc(db, `provinces/${provinceId}/districts`, id);
+      const districtSnap = await getDocs(collection(db, `provinces/${provinceId}/districts`));
+      const districtData = districtSnap.docs.find((d) => d.id === id)?.data();
+
+      if (!districtData || !(await canEdit(session, districtData))) {
+        return NextResponse.json({ error: "District not found or permission denied" }, { status: 403 });
+      }
+
+      await deleteDoc(districtRef);
       return new NextResponse(null, { status: 204 });
     }
 

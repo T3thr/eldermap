@@ -15,17 +15,23 @@
   --card: #f8f9fa;
   --glass-bg: #ffffffcc;
   --glass-border: #46040433;
+  --border: #e5e7eb; 
+  --success: #28a745; /* Success color (green) */
+  --destructive: #dc3545; /* Destructive color (red) */
 }
 
-html[class="dark"] {
+.dark {
   --background: #0f0f1a;
   --foreground: #e0e0ff;
   --primary: #00d4ff;
   --secondary: #ff007a;
   --accent: #00d4ff;
-  --card: #1e1e3b;
+  --card: #18182e;
   --glass-bg: #1e1e3b80;
   --glass-border: #00d4ff33;
+  --border: #374151; 
+  --success: #218838; /* Dark mode success color (green) */
+  --destructive: #c82333; /* Dark mode destructive color (red) */
 }
 
 body {
@@ -97,6 +103,14 @@ html.theme-transitioning {
     .max-w-5xl { max-width: 100%; }
   }
 
+  /* Border color utilities */
+  .border-border {
+    border-color: var(--border);
+  }
+  .border-glass-border {
+    border-color: var(--glass-border);
+  }
+
   .bg-background { background-color: var(--background); transition: background-color 0.3s ease; }
   .text-background { color: var(--background); transition: color 0.3s ease; }
   .bg-foreground { background-color: var(--foreground); transition: background-color 0.3s ease; }
@@ -113,6 +127,26 @@ html.theme-transitioning {
   .text-glass-bg { color: var(--glass-bg); transition: color 0.3s ease; }
   .border-glass-border { border-color: var(--glass-border); transition: border-color 0.3s ease; }
   .text-glass-border { color: var(--glass-border); transition: color 0.3s ease; }
+}
+
+/* Add the success and destructive background utilities */
+@layer utilities {
+  .bg-success {
+    background-color: var(--success);
+    transition: background-color 0.3s ease;
+  }
+  .bg-destructive {
+    background-color: var(--destructive);
+    transition: background-color 0.3s ease;
+  }
+  .text-success {
+    color: var(--success);
+    transition: color 0.3s ease;
+  }
+  .text-destructive {
+    color: var(--destructive);
+    transition: color 0.3s ease;
+  }
 }
 
 svg path {

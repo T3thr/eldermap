@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation"; // Import useRouter
-import { FaUser, FaSignOutAlt, FaAngleRight } from "react-icons/fa";
+import { FaUser, FaSignOutAlt, FaAngleRight , FaAngleLeft } from "react-icons/fa";
 
 export default function FloatingSidebar() {
   const { data: session, status } = useSession();
@@ -57,7 +57,7 @@ export default function FloatingSidebar() {
             onClick={() => setIsOpen(false)}
             aria-label="Close sidebar"
           >
-            <FaAngleRight className="text-lg" />
+            <FaAngleLeft className="text-lg" />
           </button>
           {/* Profile */}
           <button
@@ -70,7 +70,7 @@ export default function FloatingSidebar() {
           {/* Sign Out */}
           <button
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent/10 transition-colors"
-            onClick={() => signOut({ callbackUrl: "/admin/login" })}
+            onClick={() => signOut({ callbackUrl: "/" })}
           >
             <FaSignOutAlt className="text-sm" />
             Sign Out
@@ -82,6 +82,7 @@ export default function FloatingSidebar() {
           onClick={() => setIsOpen(true)}
           aria-label="Open sidebar"
         >
+          <FaUser/>
           <FaAngleRight className="text-lg" />
         </button>
       )}

@@ -6,9 +6,11 @@ import { db } from "@/lib/firebase-config";
 import Map from "@/components/Map";
 import PeriodSelector from "@/components/PeriodSelector";
 import DistrictInfo from "@/components/DistrictInfo";
-import { Province, District, HistoricalPeriod } from "@/lib/districts";
+import { District, HistoricalPeriod } from "@/lib/districts";
+import { Province} from "@/lib/provinces";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp, Maximize, Minimize, CheckCircle, Circle, Search } from "lucide-react";
+import Loading from "./loading";
 
 export default function Home() {
   const [provinces, setProvinces] = useState<Province[]>([]);
@@ -25,7 +27,6 @@ export default function Home() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
-  // Load initial state from localStorage
   useEffect(() => {
     const savedState = localStorage.getItem("thaiTemporalPortalState");
     if (savedState) {
@@ -40,7 +41,6 @@ export default function Home() {
     }
   }, []);
 
-  // Fetch provinces and apply saved state
   const fetchProvinces = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -50,6 +50,7 @@ export default function Home() {
       const periodsData: HistoricalPeriod[] = [];
 
       for (const provinceDoc of provincesSnapshot.docs) {
+        const provinceData = provinceDoc.data();
         const districtsSnapshot = await getDocs(collection(db, `provinces/${provinceDoc.id}/districts`));
         const districtsData: District[] = districtsSnapshot.docs.map((doc) => {
           const district = doc.data() as District;
@@ -65,9 +66,20 @@ export default function Home() {
 
         provincesData.push({
           id: provinceDoc.id,
-          name: provinceDoc.data().name,
-          thaiName: provinceDoc.data().thaiName,
+          name: provinceData.name,
+          thaiName: provinceData.thaiName,
+          totalArea: provinceData.totalArea || 0,
           districts: districtsData,
+          historicalPeriods: provinceData.historicalPeriods || [],
+          collabSymbol: provinceData.collabSymbol || undefined,
+          tags: provinceData.tags || [],
+          createdAt: provinceData.createdAt,
+          createdBy: provinceData.createdBy || "",
+          lock: provinceData.lock || false,
+          version: provinceData.version || 1,
+          backgroundSvgPath: provinceData.backgroundSvgPath || undefined,
+          backgroundImageUrl: provinceData.backgroundImageUrl || undefined,
+          backgroundDimensions: provinceData.backgroundDimensions || undefined,
         });
       }
 
@@ -96,7 +108,6 @@ export default function Home() {
     }
   }, []);
 
-  // Save state to localStorage
   useEffect(() => {
     if (!isLoading && selectedProvince) {
       localStorage.setItem(
@@ -117,7 +128,6 @@ export default function Home() {
     fetchProvinces();
   }, [fetchProvinces]);
 
-  // Fullscreen handling with Fullscreen API
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsMapFullScreen(document.fullscreenElement === mapContainerRef.current);
@@ -126,7 +136,6 @@ export default function Home() {
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
-  // Close sidebar when clicking outside on mobile
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -195,16 +204,7 @@ export default function Home() {
   );
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-          className="w-12 h-12 border-4 border-t-primary border-r-secondary rounded-full"
-        />
-        <span className="ml-4 text-lg font-thai text-foreground">Loading...</span>
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
@@ -220,7 +220,7 @@ export default function Home() {
           Thai Temporal Portal
         </h1>
         <p className="text-sm sm:text-base text-foreground/70 mt-2 text-center">
-          Explore Thailand&apos;s Historical Journey
+          Explore Thailand's Historical Journey
         </p>
       </motion.header>
 
@@ -249,7 +249,7 @@ export default function Home() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -100 }}
               transition={{ duration: 0.3 }}
-              className="lg:w-80 xl:w-96 flex-shrink-0 bg-card/90 border border-glass-border rounded-xl p-4 space-y-6 shadow-lg"
+              className="lg:w-80 xl:w-96 flex-shrink-0 bg-card border border-glass-border rounded-xl p-4 space-y-6 shadow-lg"
               aria-label="Control Panel"
             >
               {/* Province Selector */}
@@ -263,14 +263,14 @@ export default function Home() {
                     placeholder="Search Province..."
                     value={provinceSearch}
                     onChange={(e) => setProvinceSearch(e.target.value)}
-                    className="w-full p-2 pl-10 pr-10 rounded-lg bg-card/50 text-foreground border border-glass-border focus:ring-2 focus:ring-primary focus:outline-none placeholder-foreground/50"
+                    className="w-full p-2 pl-10 pr-10 rounded-lg bg-card text-foreground border border-glass-border focus:ring-2 focus:ring-primary focus:outline-none placeholder-foreground/50"
                     aria-label="Search provinces"
                   />
                   {provinceSearch && (
                     <button
                       type="button"
                       onClick={() => setProvinceSearch("")}
-                      className="absolute right-3 top-2/5 transform -translate-y-1/2 text-foreground/50 hover:text-foreground focus:outline-none"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-foreground/50 hover:text-foreground focus:outline-none"
                       aria-label="Clear search"
                     >
                       <span className="text-xl">×</span>
@@ -278,7 +278,7 @@ export default function Home() {
                   )}
                 </div>
                 <select
-                  className="w-full mt-2 p-2 rounded-lg bg-card/50 border border-glass-border focus:ring-2 focus:ring-primary focus:outline-none text-foreground"
+                  className="w-full mt-2 p-2 rounded-lg bg-card border border-glass-border focus:ring-2 focus:ring-primary focus:outline-none text-foreground"
                   value={selectedProvince?.id || ""}
                   onChange={(e) => {
                     const province = provinces.find((p) => p.id === e.target.value);
@@ -307,7 +307,7 @@ export default function Home() {
                     className={`px-3 py-1 rounded-lg text-sm border ${
                       isGlobalView
                         ? "bg-secondary text-white border-secondary"
-                        : "bg-card/50 text-secondary border-secondary/50 hover:bg-secondary/10"
+                        : "bg-card text-secondary border-secondary/50 hover:bg-secondary/10"
                     }`}
                     aria-label={isGlobalView ? "Switch to District View" : "Switch to Global View"}
                   >
@@ -353,13 +353,13 @@ export default function Home() {
                   {selectedProvince?.districts.map((district) => (
                     <motion.button
                       key={district.id}
-                      whileHover={{ scale: 1.02 }}
+                      whileHover={{ scale: 1.00 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => toggleDistrict(district)}
                       className={`w-full p-2 rounded-lg flex items-center gap-2 text-left border ${
                         isDistrictSelected(district)
                           ? "bg-primary/20 border-primary text-primary"
-                          : "bg-card/50 border-glass-border text-foreground/80 hover:bg-card/70"
+                          : "bg-card border-glass-border text-foreground/80 hover:bg-card/70"
                       }`}
                       aria-label={`Toggle ${district.name} district`}
                     >
@@ -385,7 +385,7 @@ export default function Home() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
-            className="bg-card/90 border border-glass-border rounded-xl p-4 relative"
+            className="bg-card bg-opacity-10 border border-glass-border rounded-xl p-4 relative"
           >
             <div className="flex justify-between items-center mb-4">
               <span className="px-3 py-1 bg-primary/10 text-foreground rounded-lg border border-primary/30">
@@ -420,7 +420,7 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
                 transition={{ duration: 0.3 }}
-                className="bg-card/90 border border-glass-border rounded-xl p-4"
+                className="bg-card border border-glass-border rounded-xl p-4"
               >
                 <DistrictInfo
                   districts={selectedDistricts}

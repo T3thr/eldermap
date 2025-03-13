@@ -49,7 +49,7 @@ export default function DistrictInfo({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-4 sm:p-6 md:p-8 rounded-xl border border-glass-border bg-card/90 shadow-lg max-w-full mx-auto"
+
       role="region"
       aria-label="District Information"
     >
