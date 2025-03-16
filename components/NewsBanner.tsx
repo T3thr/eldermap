@@ -56,7 +56,7 @@ const NewsBanner = () => {
             >
               <button 
                 onClick={handleDismiss}
-                className="absolute top-4 right-4 text-foreground/70 hover:text-primary dark:text-gray-400 dark:hover:text-white transition-colors p-1 rounded-full hover:bg-accent/10"
+                className="absolute top-4 right-4 text-foreground hover:text-primary dark:text-gray-400 dark:hover:text-white transition-colors p-1 rounded-full hover:bg-accent/10"
                 aria-label="dismiss"
               >
                 <motion.div whileHover={{ rotate: 90 }} transition={{ duration: 0.2 }}>
@@ -69,7 +69,7 @@ const NewsBanner = () => {
                   <Bell className="mr-2" size={22} />
                   Latest Updates
                 </h3>
-                <div className="text-foreground/80 dark:text-gray-300 space-y-3 p-3 bg-accent/5 rounded-lg border border-primary/10">
+                <div className="text-foreground dark:text-gray-300 space-y-3 p-3 bg-accent/5 rounded-lg border border-primary/10">
                   <p>Welcome to our new Thai Provinces History platform!</p>
                   <p>We&apos;ve just added 10 new historical timelines for northern provinces.</p>
                 </div>
@@ -83,7 +83,7 @@ const NewsBanner = () => {
                   onChange={(e) => setDontShowAgain(e.target.checked)}
                   className="h-4 w-4 text-primary rounded border-primary/30 focus:ring-primary"
                 />
-                <label htmlFor="dontShowAgain" className="ml-2 text-sm text-foreground/80 dark:text-gray-300">
+                <label htmlFor="dontShowAgain" className="ml-2 text-sm text-foreground dark:text-gray-300">
                   Don&apos;t show this again
                 </label>
               </div>

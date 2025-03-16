@@ -10,7 +10,7 @@ import { District, HistoricalPeriod } from "@/lib/districts";
 import { Province } from "@/lib/provinces";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp, Maximize, Minimize, Search, XCircle } from "lucide-react";
-import Loading from "./Loading";
+import Loading from "@/app/Loading";
 import { useDebounce } from "use-debounce";
 
 export default function Home() {
