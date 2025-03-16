@@ -1,4 +1,4 @@
-// components/Loading.tsx
+// app/Loading.ts
 import { motion } from "framer-motion";
 
 export default function Loading() {
