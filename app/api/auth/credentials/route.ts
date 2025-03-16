@@ -85,9 +85,9 @@ export async function POST(req: NextRequest) {
       username: username,
       name: adminData.name || "Admin",
       email: adminData.email,
-      role: adminData.role || "admin",
+      role: (adminData.role === "master" || username === "admin1") ? "master" : (adminData.role || "admin"),
     };
-
+    
     return NextResponse.json(adminUser);
   } catch (error) {
     console.error("Authentication error:", error);

@@ -238,7 +238,7 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody className="bg-background divide-y divide-glass">
                   {dashboardData.admins.map((admin, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
+                    <tr key={index} className="hover:bg-card">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">
                         {admin.name}
                       </td>

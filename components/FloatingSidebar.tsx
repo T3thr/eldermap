@@ -1,10 +1,9 @@
-// components/FloatingSidebar.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation"; // Import useRouter
-import { FaUser, FaSignOutAlt, FaAngleRight , FaAngleLeft } from "react-icons/fa";
+import { FaUser, FaSignOutAlt, FaAngleRight, FaAngleLeft } from "react-icons/fa";
 
 export default function FloatingSidebar() {
   const { data: session, status } = useSession();
@@ -12,8 +11,8 @@ export default function FloatingSidebar() {
   const [isActive, setIsActive] = useState(true);
   const router = useRouter(); // Initialize useRouter
 
-  // Only render for authenticated admins
-  const isAdmin = session?.user?.role === "admin";
+  // Only render for authenticated admins or masters
+  const isAdmin = session?.user?.role === "admin" || session?.user?.role === "master";
 
   // Handle inactivity fade
   useEffect(() => {
@@ -37,7 +36,7 @@ export default function FloatingSidebar() {
     };
   }, [isAdmin, status]); // Dependencies ensure hook order consistency
 
-  // Don’t render if not an admin or session is loading
+  // Don’t render if not an admin, master, or session is loading
   if (status === "loading" || !isAdmin) return null;
 
   return (
@@ -82,7 +81,7 @@ export default function FloatingSidebar() {
           onClick={() => setIsOpen(true)}
           aria-label="Open sidebar"
         >
-          <FaUser/>
+          <FaUser />
           <FaAngleRight className="text-lg" />
         </button>
       )}

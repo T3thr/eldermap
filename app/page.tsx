@@ -10,7 +10,7 @@ import { District, HistoricalPeriod } from "@/lib/districts";
 import { Province } from "@/lib/provinces";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp, Maximize, Minimize, Search, XCircle } from "lucide-react";
-import Loading from "./loading";
+import Loading from "@/components/Loading";
 import { useDebounce } from "use-debounce";
 
 export default function Home() {
@@ -364,7 +364,7 @@ export default function Home() {
                       {selectedProvince?.districts.map((district) => (
                         <motion.button
                           key={district.id}
-                          whileHover={{ scale: 1.02 }}
+                          whileHover={{ scale: 1.00 }}
                           whileTap={{ scale: 0.98 }}
                           onClick={() => toggleDistrict(district)}
                           className={`w-full p-2 rounded-lg flex items-center gap-2 text-left border ${

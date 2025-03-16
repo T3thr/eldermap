@@ -14,7 +14,7 @@ export async function middleware(req: NextRequest) {
     }
 
     // Check if the user's role is 'admin'
-    if (session.role !== 'admin') {
+    if (session?.role !== 'admin' && session?.role !==  'master') {
       return NextResponse.redirect(new URL('/login', req.url));
     }
   }
