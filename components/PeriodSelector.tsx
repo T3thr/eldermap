@@ -1,6 +1,7 @@
 import { HistoricalPeriod } from "@/lib/districts";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
+import { Clock } from "lucide-react";
 
 interface PeriodSelectorProps {
   periods: HistoricalPeriod[];
@@ -36,13 +37,16 @@ export default function PeriodSelector({ periods, selectedPeriod, onSelectPeriod
   };
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-thai text-foreground/70 flex items-center gap-2">
-        <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        Slider
-      </h2>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="bg-glass-bg p-4 rounded-lg border border-glass-border shadow-sm"
+    >
+      <div className="flex items-center gap-2 mb-4">
+        <Clock className="w-6 h-6 text-primary" />
+        <h2 className="text-xl font-thai text-foreground/70">Time Slider</h2>
+      </div>
       <div className="relative px-4">
         <input
           type="range"
@@ -51,6 +55,10 @@ export default function PeriodSelector({ periods, selectedPeriod, onSelectPeriod
           value={sliderValue}
           onChange={handleSliderChange}
           className="w-full h-2 bg-card rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-[0_0_10px_var(--primary)]"
+          aria-label="Select historical period"
+          aria-valuemin={0}
+          aria-valuemax={periods.length - 1}
+          aria-valuenow={sliderValue}
         />
         <div className="flex justify-between mt-2">
           {periods.map((period, index) => (
@@ -58,7 +66,10 @@ export default function PeriodSelector({ periods, selectedPeriod, onSelectPeriod
               key={period.era}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: sliderValue === index ? 1 : 0.5, y: 0 }}
-              className={`text-xs font-thai ${sliderValue === index ? "text-primary" : "text-foreground/70"}`}
+              whileHover={{ scale: 1.1 }}
+              className={`text-xs font-thai ${
+                sliderValue === index ? "text-primary font-bold" : "text-foreground/70"
+              }`}
             >
               {period.era}
             </motion.span>
@@ -67,14 +78,14 @@ export default function PeriodSelector({ periods, selectedPeriod, onSelectPeriod
       </div>
       {selectedPeriod && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex items-center gap-2 p-2 bg-card/50 rounded-lg border border-glass-border"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex items-center gap-2 p-2 mt-4 bg-card/50 rounded-lg border border-glass-border"
         >
           <div className="w-4 h-4 rounded-full" style={{ backgroundColor: selectedPeriod.color }} />
           <span className="text-sm font-thai text-foreground">{selectedPeriod.yearRange}</span>
         </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }

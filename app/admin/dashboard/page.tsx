@@ -87,7 +87,7 @@ export default function AdminDashboard() {
             <div className="p-5">
               <div className="flex items-center">
                 <div className="ml-5 w-0 flex-1">
-                  <div className="text-sm font-medium text-gray-500 truncate">
+                  <div className="text-sm font-medium text-foreground truncate">
                     Total Provinces
                   </div>
                   <div className="mt-1 text-3xl font-semibold text-foreground">
@@ -102,7 +102,7 @@ export default function AdminDashboard() {
             <div className="p-5">
               <div className="flex items-center">
                 <div className="ml-5 w-0 flex-1">
-                  <div className="text-sm font-medium text-gray-500 truncate">
+                  <div className="text-sm font-medium text-foreground truncate">
                     Total Districts
                   </div>
                   <div className="mt-1 text-3xl font-semibold text-foreground">
@@ -117,7 +117,7 @@ export default function AdminDashboard() {
             <div className="p-5">
               <div className="flex items-center">
                 <div className="ml-5 w-0 flex-1">
-                  <div className="text-sm font-medium text-gray-500 truncate">
+                  <div className="text-sm font-medium text-foreground truncate">
                     Administrator Accounts
                   </div>
                   <div className="mt-1 text-3xl font-semibold text-foreground">
@@ -150,44 +150,44 @@ export default function AdminDashboard() {
           <div className="bg-card overflow-hidden shadow rounded-lg border border-accent/20">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead className="bg-card">
                   <tr>
                     <th
                       scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider"
                     >
                       Name
                     </th>
                     <th
                       scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider"
                     >
                       Thai Name
                     </th>
                     <th
                       scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider"
                     >
                       District Count
                     </th>
                     <th
                       scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider"
                     >
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-background divide-y divide-glass">
                   {dashboardData.provinces.map((province) => (
-                    <tr key={province.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <tr key={province.id} className="hover:bg-card">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground">
                         {province.name}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                         {province.thaiName}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                         {province.districtCount}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -213,39 +213,39 @@ export default function AdminDashboard() {
           </h2>
           <div className="bg-card overflow-hidden shadow rounded-lg border border-accent/20">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-glass">
+                <thead className="bg-card">
                   <tr>
                     <th
                       scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider"
                     >
                       Name
                     </th>
                     <th
                       scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider"
                     >
                       Username
                     </th>
                     <th
                       scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider"
                     >
                       Email
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-background divide-y divide-glass">
                   {dashboardData.admins.map((admin, index) => (
                     <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">
                         {admin.name}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                         {admin.username}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                         {admin.email}
                       </td>
                     </tr>

@@ -25,7 +25,7 @@
   --foreground: #e0e0ff;
   --primary: #00d4ff;
   --secondary: #ff007a;
-  --accent: #00d4ff;
+  --accent: rgb(51, 136, 153);
   --card: #18182e;
   --glass-bg: #1e1e3b80;
   --glass-border: #00d4ff33;
@@ -111,6 +111,7 @@ html.theme-transitioning {
     border-color: var(--glass-border);
   }
 
+  /* Background and text color utilities */
   .bg-background { background-color: var(--background); transition: background-color 0.3s ease; }
   .text-background { color: var(--background); transition: color 0.3s ease; }
   .bg-foreground { background-color: var(--foreground); transition: background-color 0.3s ease; }
@@ -127,10 +128,34 @@ html.theme-transitioning {
   .text-glass-bg { color: var(--glass-bg); transition: color 0.3s ease; }
   .border-glass-border { border-color: var(--glass-border); transition: border-color 0.3s ease; }
   .text-glass-border { color: var(--glass-border); transition: color 0.3s ease; }
-}
 
-/* Add the success and destructive background utilities */
-@layer utilities {
+  /* Hover utilities for background and text colors */
+  .hover\:bg-background:hover { background-color: var(--background); }
+  .hover\:text-background:hover { color: var(--background); }
+  .hover\:bg-foreground:hover { background-color: var(--foreground); }
+  .hover\:text-foreground:hover { color: var(--foreground); }
+  .hover\:bg-primary:hover { background-color: var(--primary); }
+  .hover\:text-primary:hover { color: var(--primary); }
+  .hover\:bg-secondary:hover { background-color: var(--secondary); }
+  .hover\:text-secondary:hover { color: var(--secondary); }
+  .hover\:bg-accent:hover { background-color: var(--accent); }
+  .hover\:text-accent:hover { color: var(--accent); }
+  .hover\:bg-card:hover { background-color: var(--card); }
+  .hover\:text-card:hover { color: var(--card); }
+  .hover\:bg-glass-bg:hover { background-color: var(--glass-bg); }
+  .hover\:text-glass-bg:hover { color: var(--glass-bg); }
+  .hover\:border-glass-border:hover { border-color: var(--glass-border); }
+  .hover\:text-glass-border:hover { color: var(--glass-border); }
+
+  /* Divide color utilities */
+  .divide-border > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--border);
+  }
+  .divide-glass-border > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--glass-border);
+  }
+
+  /* Add the success and destructive background utilities */
   .bg-success {
     background-color: var(--success);
     transition: background-color 0.3s ease;
@@ -147,6 +172,12 @@ html.theme-transitioning {
     color: var(--destructive);
     transition: color 0.3s ease;
   }
+
+  /* Hover utilities for success and destructive colors */
+  .hover\:bg-success:hover { background-color: var(--success); }
+  .hover\:text-success:hover { color: var(--success); }
+  .hover\:bg-destructive:hover { background-color: var(--destructive); }
+  .hover\:text-destructive:hover { color: var(--destructive); }
 }
 
 svg path {

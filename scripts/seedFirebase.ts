@@ -27,7 +27,7 @@ const normalizeTimestamp = (value: any): any => {
   return value;
 };
 
-// Helper function to recursively normalize Timestamps in an object
+// Helper function to recursively normalize Timestamps and handle complex objects
 const normalizeData = (data: any): any => {
   if (data === null || data === undefined) return data;
   if (data instanceof Timestamp) return normalizeTimestamp(data);
@@ -69,6 +69,8 @@ const seedFirebase = async () => {
             url: mediaItem.url,
             altText: mediaItem.altText,
             description: mediaItem.description,
+            thumbnailUrl: mediaItem.thumbnailUrl || null,
+            duration: mediaItem.duration || null,
             license: mediaItem.license || null,
             createdAt: mediaItem.createdAt || null,
           })),
@@ -77,7 +79,8 @@ const seedFirebase = async () => {
         collabSymbol: province.collabSymbol || null,
         tags: province.tags,
         createdAt: province.createdAt || Timestamp.now(),
-        createdBy: province.createdBy,
+        createdBy: province.createdBy.map(admin => ({ name: admin.name, id: admin.id })), // Array of Admin objects
+        editor: province.editor.map(admin => ({ name: admin.name, id: admin.id })), // Array of Admin objects
         lock: province.lock,
         version: province.version,
         backgroundSvgPath: province.backgroundSvgPath || null,
@@ -118,6 +121,8 @@ const seedFirebase = async () => {
               url: mediaItem.url,
               altText: mediaItem.altText,
               description: mediaItem.description,
+              thumbnailUrl: mediaItem.thumbnailUrl || null,
+              duration: mediaItem.duration || null,
               license: mediaItem.license || null,
               createdAt: mediaItem.createdAt || null,
             })),
@@ -127,20 +132,28 @@ const seedFirebase = async () => {
             ? {
                 novelTitle: district.collab.novelTitle,
                 storylineSnippet: district.collab.storylineSnippet,
-                characters: district.collab.characters,
+                characters: district.collab.characters.map((char) => ({
+                  name: char.name,
+                  historicalFigure: char.historicalFigure || false,
+                  bio: char.bio || null,
+                })),
                 relatedLandmarks: district.collab.relatedLandmarks,
                 media: district.collab.media.map((mediaItem: Media) => ({
                   type: mediaItem.type,
                   url: mediaItem.url,
                   altText: mediaItem.altText,
                   description: mediaItem.description,
+                  thumbnailUrl: mediaItem.thumbnailUrl || null,
+                  duration: mediaItem.duration || null,
                   license: mediaItem.license || null,
                   createdAt: mediaItem.createdAt || null,
                 })),
                 isActive: district.collab.isActive,
                 author: district.collab.author || null,
+                collaborators: district.collab.collaborators || null,
                 publicationDate: district.collab.publicationDate || null,
                 externalLink: district.collab.externalLink || null,
+                version: district.collab.version || null,
                 duplicatedDistricts: district.collab.duplicatedDistricts || null,
                 duplicatedProvinces: district.collab.duplicatedProvinces || null,
               }
@@ -153,7 +166,8 @@ const seedFirebase = async () => {
           population: district.population || null,
           tags: district.tags || null,
           createdAt: district.createdAt || Timestamp.now(),
-          createdBy: district.createdBy,
+          createdBy: district.createdBy.map(admin => ({ name: admin.name, id: admin.id })), // Array of Admin objects
+          editor: district.editor.map(admin => ({ name: admin.name, id: admin.id })), // Array of Admin objects
           lock: district.lock,
           version: district.version,
         });
@@ -172,7 +186,8 @@ const seedFirebase = async () => {
 };
 
 // Run the seeding function
-seedFirebase().then(() => {
+(async () => {
+  await seedFirebase();
   console.log('Seeding process completed.');
   process.exit(0);
-});
+})();

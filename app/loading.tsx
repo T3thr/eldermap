@@ -1,7 +1,7 @@
 // components/Loading.tsx
 import { motion } from "framer-motion";
 
-const Loading = () => {
+export default function Loading() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background fixed top-0 left-0 right-0 bottom-0 z-50">
       <motion.div
@@ -16,4 +16,3 @@ const Loading = () => {
   );
 };
 
-export default Loading;

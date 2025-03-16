@@ -1,7 +1,8 @@
 import { District, HistoricalPeriod } from "@/lib/districts";
 import { motion } from "framer-motion";
-import { useState, useEffect, useCallback } from "react";
-import { Eye, EyeOff, Grid, MapPin } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Eye, EyeOff, Grid, MapPin,Home } from "lucide-react";
+import { throttle } from "lodash";
 
 interface MapProps {
   districts: District[];
@@ -9,7 +10,7 @@ interface MapProps {
   onDistrictToggle: (district: District) => void;
   selectedPeriod: HistoricalPeriod | null;
   isGlobalView?: boolean;
-  showCollab?: boolean;
+  onReset?: () => void;
 }
 
 export default function Map({
@@ -18,7 +19,7 @@ export default function Map({
   onDistrictToggle,
   selectedPeriod,
   isGlobalView = false,
-  showCollab = false,
+  onReset
 }: MapProps) {
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null);
   const [mapScale, setMapScale] = useState(1);
@@ -29,6 +30,7 @@ export default function Map({
   const [showGrid, setShowGrid] = useState(true);
   const [showCenterDot, setShowCenterDot] = useState(true);
   const [touchDistance, setTouchDistance] = useState<number | null>(null);
+  const mapRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
     setMapScale(1);
@@ -42,16 +44,19 @@ export default function Map({
     setDragStart({ x: clientX - mapPosition.x, y: clientY - mapPosition.y });
   }, [mapPosition]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    if (isDragging) {
-      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-      const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-      setMapPosition({
-        x: clientX - dragStart.x,
-        y: clientY - dragStart.y,
-      });
-    }
-  }, [isDragging, dragStart]);
+  const handleMouseMove = useCallback(
+    throttle((e: React.MouseEvent | React.TouchEvent) => {
+      if (isDragging) {
+        const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+        const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+        setMapPosition({
+          x: clientX - dragStart.x,
+          y: clientY - dragStart.y,
+        });
+      }
+    }, 16),
+    [isDragging, dragStart]
+  );
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -72,7 +77,6 @@ export default function Map({
         const touch1 = e.touches[0];
         const touch2 = e.touches[1];
         const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
-
         if (touchDistance === null) {
           setTouchDistance(distance);
         } else {
@@ -85,6 +89,12 @@ export default function Map({
     [touchDistance, isDragging, handleMouseMove]
   );
 
+  const handleReset = useCallback(() => {
+    setMapScale(1);
+    setMapPosition({ x: 0, y: 0 });
+    if (onReset) onReset(); // Call onReset when map is reset
+  }, [onReset]);
+  
   const getDistrictColor = (district: District) =>
     isGlobalView && selectedPeriod
       ? district.historicalPeriods.find((p) => p.era === selectedPeriod.era)?.color || district.historicalColor
@@ -92,47 +102,42 @@ export default function Map({
       ? selectedPeriod.color
       : district.historicalColor;
 
-  const getCollabColor = (district: District) => {
-    return district.collab?.isActive && showCollab ? "rgba(255, 215, 0, 0.5)" : getDistrictColor(district);
-  };
+  const getCollabColor = (district: District) =>
+    district.collab?.isActive ? "rgba(255, 215, 0, 0.5)" : getDistrictColor(district);
+
+  const viewBox = "0 0 600 400"; // Dynamic sizing could be added based on province data
 
   return (
     <div
-      className="relative w-full h-[50vh] sm:h-[60vh] md:h-[70vh] lg:h-[75vh] rounded-xl overflow-hidden bg-card/50 border border-glass-border shadow-md"
+      className="relative w-full h-[50vh] sm:h-[60vh] md:h-[70vh] lg:h-[75vh] rounded-xl overflow-hidden bg-card/50 border border-glass-border shadow-md glass-effect"
       style={{ touchAction: "none" }}
     >
-      {/* Controls */}
       <div className="absolute top-4 right-4 z-20 bg-card/80 rounded-full p-2 flex flex-col gap-2 shadow-md">
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setMapScale((prev) => Math.min(prev + 0.25, 3.5))}
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/50 touch-manipulation"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/50"
           aria-label="Zoom in"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
           </svg>
         </motion.button>
+
         <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => {
-            setMapScale(1);
-            setMapPosition({ x: 0, y: 0 });
-          }}
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-secondary/20 hover:bg-secondary/30 text-secondary border border-secondary/50 touch-manipulation"
+          onClick={handleReset}
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-secondary/20 hover:bg-secondary/30 text-secondary border border-secondary/50"
           aria-label="Reset map"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-          </svg>
+          <Home className="w-5 h-5" />
         </motion.button>
+
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setMapScale((prev) => Math.max(prev - 0.25, 0.5))}
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/50 touch-manipulation"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/50"
           aria-label="Zoom out"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -144,8 +149,8 @@ export default function Map({
           whileTap={{ scale: 0.9 }}
           onClick={() => setShowGrid((prev) => !prev)}
           className={`w-10 h-10 flex items-center justify-center rounded-full ${
-            showGrid ? "bg-primary/30 text-primary" : "bg-card text-foreground 🙂/70"
-          } hover:bg-primary/40 border border-primary/50 touch-manipulation`}
+            showGrid ? "bg-primary/30 text-primary" : "bg-card text-foreground/70"
+          } hover:bg-primary/40 border border-primary/50`}
           aria-label={showGrid ? "Hide grid" : "Show grid"}
         >
           <Grid className="w-5 h-5" />
@@ -156,19 +161,18 @@ export default function Map({
           onClick={() => setShowCenterDot((prev) => !prev)}
           className={`w-10 h-10 flex items-center justify-center rounded-full ${
             showCenterDot ? "bg-secondary/30 text-secondary" : "bg-card text-foreground/70"
-          } hover:bg-secondary/40 border border-secondary/50 touch-manipulation`}
+          } hover:bg-secondary/40 border border-secondary/50`}
           aria-label={showCenterDot ? "Hide center dot" : "Show center dot"}
         >
           <MapPin className="w-5 h-5" />
         </motion.button>
       </div>
 
-      {/* Legend */}
       {showLegend && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="absolute bottom-4 left-4 z-20 bg-card/80 rounded-xl p-4 shadow-md max-w-xs w-full sm:max-w-sm"
+          className="absolute bottom-4 left-4 z-20 bg-card/80 rounded-xl p-4 shadow-md max-w-xs w-full sm:max-w-sm glass-effect"
         >
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-sm font-thai font-medium text-foreground/70">Temporal Legend</h3>
@@ -176,7 +180,7 @@ export default function Map({
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowLegend(false)}
-              className="text-secondary touch-manipulation"
+              className="text-secondary"
               aria-label="Hide legend"
             >
               <EyeOff className="w-5 h-5" />
@@ -207,22 +211,21 @@ export default function Map({
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowLegend(true)}
-          className="absolute bottom-4 left-4 z-20 bg-card/80 rounded-full p-2 text-primary border border-primary/50 touch-manipulation"
+          className="absolute bottom-4 left-4 z-20 bg-card/80 rounded-full p-2 text-primary border border-primary/50"
           aria-label="Show legend"
         >
           <Eye className="w-5 h-5" />
         </motion.button>
       )}
 
-      {/* Hovered District Tooltip */}
       {hoveredDistrict && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="absolute top-4 left-4 z-20 bg-card/80 rounded-lg p-3 shadow-md max-w-xs w-full"
+          className="absolute top-4 left-4 z-20 bg-card/80 rounded-lg p-3 shadow-md max-w-xs w-full glass-effect"
         >
           <span className="text-sm font-thai font-medium text-foreground">{hoveredDistrict}</span>
-          {districts.find((d) => d.name === hoveredDistrict)?.collab?.isActive && showCollab && (
+          {districts.find((d) => d.name === hoveredDistrict)?.collab?.isActive && (
             <div className="mt-1 text-xs text-yellow-500">
               Collab: {districts.find((d) => d.name === hoveredDistrict)?.collab?.novelTitle}
             </div>
@@ -230,7 +233,6 @@ export default function Map({
         </motion.div>
       )}
 
-      {/* Map Container */}
       <div
         className="w-full h-full cursor-grab touch-pan-x touch-pan-y select-none"
         onMouseDown={handleMouseDown}
@@ -249,9 +251,12 @@ export default function Map({
           className="w-full h-full flex items-center justify-center"
         >
           <svg
-            viewBox="0 0 600 400"
+            ref={mapRef}
+            viewBox={viewBox}
             className="w-full h-full max-w-full max-h-full"
             preserveAspectRatio="xMidYMid meet"
+            role="region"
+            aria-label={`Map of ${districts.length} districts`}
           >
             <defs>
               <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
@@ -291,7 +296,13 @@ export default function Map({
                       e.preventDefault();
                       onDistrictToggle(district);
                     }}
-                    className="touch-manipulation"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onDistrictToggle(district);
+                      }
+                    }}
                     role="button"
                     aria-label={`Toggle ${district.name}`}
                   >
@@ -309,6 +320,7 @@ export default function Map({
                           fill: getCollabColor(district),
                         }}
                         className="transition-all duration-300"
+                        aria-label={`Map of ${district.name}`}
                       />
                     ) : (
                       <rect
@@ -349,9 +361,7 @@ export default function Map({
 }
 
 function isColorDark(color: string): boolean {
-  let r = 0,
-    g = 0,
-    b = 0;
+  let r = 0, g = 0, b = 0;
   if (color.startsWith("#")) {
     if (color.length === 4) {
       r = parseInt(color[1] + color[1], 16);
