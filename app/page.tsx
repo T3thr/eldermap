@@ -418,7 +418,7 @@ export default function Home() {
         </AnimatePresence>
 
         {/* Main Content Area */}
-        <div className="w-full flex-1 flex flex-col space-y-6">
+        <div className="min-w-2xl w-full min-h-2xl flex-1 flex flex-col space-y-6">
           <motion.section
             ref={mapContainerRef}
             initial={{ opacity: 0 }}

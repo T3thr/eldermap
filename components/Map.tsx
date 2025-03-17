@@ -341,7 +341,7 @@ export default function Map({
                       y={y + height / 2}
                       textAnchor="middle"
                       alignmentBaseline="middle"
-                      fill={isColorDark(getCollabColor(district)) ? "#fff" : "#333"}
+                      fill={isColorDark(getCollabColor(district)) ? "#fff" : "#140005"}
                       fontSize="clamp(10px, 2vw, 14px)"
                       fontWeight={isSelected ? "bold" : "normal"}
                       className="font-thai select-none"
