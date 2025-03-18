@@ -5,12 +5,14 @@ import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import toast, { Toaster } from "react-hot-toast";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function AdminLogin() {
   const [loginType, setLoginType] = useState<"username" | "email">("username");
   const [username, setUsername] = useState<string>("");
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -66,7 +68,7 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background/95 to-accent/10 p-4">
+    <div className="min-h-screen mt-8 flex items-center justify-center bg-gradient-to-br from-background via-background/95 to-accent/10 p-4">
       <Toaster position="bottom-right" toastOptions={{ duration: 3000 }} />
       <div className="w-full max-w-md bg-card shadow-2xl rounded-xl p-8 border border-accent/20 glass-effect">
         <h2 className="text-3xl font-bold text-center text-primary mb-2">Admin Portal</h2>
@@ -129,17 +131,33 @@ export default function AdminLogin() {
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Password</label>
-            <input
-              type="password"
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onBlur={validateInput}
-              disabled={loading}
-              className={`w-full px-4 py-3 bg-background border border-input rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 ${
-                errors.password ? "border-destructive" : "hover:border-primary/50"
-              } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onBlur={validateInput}
+                disabled={loading}
+                className={`w-full px-4 py-3 bg-background border border-input rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 pr-12 ${
+                  errors.password ? "border-destructive" : "hover:border-primary/50"
+                } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={loading}
+                className={`absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors duration-200 ${
+                  loading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+                }`}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
+            </div>
             {errors.password && (
               <p className="mt-1 text-xs text-destructive animate-fade-in">{errors.password}</p>
             )}

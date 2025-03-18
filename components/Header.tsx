@@ -7,25 +7,27 @@ import { motion, AnimatePresence } from "framer-motion";
 import ThemeToggle from "./ThemeToggle";
 import About from "./About"; // Import the About component
 
-function ThaiMapIcon() {
+// Simple Thailand Flag SVG (non-animated)
+function ThaiFlagIcon() {
   return (
-    <motion.svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" 
-      height="24" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="0"
+      strokeLinecap="round"
       strokeLinejoin="round"
-      whileHover={{ scale: 1.2 }}
-      transition={{ type: "spring", stiffness: 400, damping: 10 }}
     >
-      <path d="M3 12l5-5 6 6 5-5v12z"/>
-      <path d="M12 12l-9 9"/>
-      <path d="M12 12l9 9"/>
-    </motion.svg>
+      {/* Thailand Flag: Red, White, Blue, White, Red stripes */}
+      <rect x="0" y="0" width="24" height="4" fill="#A51931" /> {/* Top Red */}
+      <rect x="0" y="4" width="24" height="4" fill="#FFFFFF" /> {/* White */}
+      <rect x="0" y="8" width="24" height="8" fill="#2D2A4A" /> {/* Blue (double height) */}
+      <rect x="0" y="16" width="24" height="4" fill="#FFFFFF" /> {/* White */}
+      <rect x="0" y="20" width="24" height="4" fill="#A51931" /> {/* Bottom Red */}
+    </svg>
   );
 }
 
@@ -33,14 +35,13 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [aboutOpen, setAboutOpen] = useState(false); // Add state for About modal
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    // Lock body scroll when menu is open
     if (menuOpen) {
       document.body.style.overflow = "hidden";
     } else {
@@ -55,7 +56,6 @@ export default function Header() {
   const toggleMenu = () => setMenuOpen(!menuOpen);
   const closeMenu = () => setMenuOpen(false);
 
-  // Updated NAV_ITEMS to include action property
   const NAV_ITEMS = [
     { 
       name: "Home", 
@@ -65,7 +65,7 @@ export default function Header() {
     },
     { 
       name: "About", 
-      href: "#", // Changed from "/about" to "#"
+      href: "#",
       icon: <Info size={24} />,
       action: () => setAboutOpen(true)
     }
@@ -97,7 +97,7 @@ export default function Header() {
               whileHover={{ rotate: 10 }}
               transition={{ type: "spring", stiffness: 300 }}
             >
-              <ThaiMapIcon />
+              <ThaiFlagIcon />
             </motion.div>
           </Link>
 
@@ -283,7 +283,6 @@ export default function Header() {
                         </motion.div>
                       </Link>
                       
-                      {/* Animated background for active item */}
                       <AnimatePresence>
                         {activeIndex === index && (
                           <motion.div

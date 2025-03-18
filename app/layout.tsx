@@ -27,6 +27,7 @@ export const metadata: Metadata = {
   description: "สำรวจมรดกทางวัฒนธรรมและประวัติศาสตร์อันหลากหลายของจังหวัดในประเทศไทยผ่านแพลตฟอร์มเชิงโต้ตอบของเรา",
   keywords: "Thai history, interactive map, Phitsanulok, Next.js, Tailwind CSS, provinces, จังหวัด, ประเทศไทย,อำเภอ,โต้ตอบ",
   authors: [{ name: "Theerapat" }],
+  // Open Graph (for Facebook and other platforms that support it)
   openGraph: {
     title: "Thai Provinces Interactive History Platform",
     description: "สำรวจมรดกทางวัฒนธรรมและประวัติศาสตร์อันหลากหลายของจังหวัดในประเทศไทยผ่านแพลตฟอร์มเชิงโต้ตอบของเรา",
@@ -34,24 +35,39 @@ export const metadata: Metadata = {
     locale: "th_TH",
     type: "website",
     url: "https://eldermap.vercel.app",
-    // Add the image URL for Open Graph here (favicon or a custom image)
     images: [
       {
-        url: "/logo.png",  // Link to the favicon file in the public folder
+        url: "/logo.png", // Link to the favicon file in the public folder
         width: 1200,
         height: 630,
         alt: "Thai Provinces Interactive History Platform",
       },
     ],
   },
+  // Twitter
   twitter: {
     card: "summary_large_image",
     title: "Thai Provinces Interactive History Platform",
     description: "สำรวจมรดกทางวัฒนธรรมและประวัติศาสตร์อันหลากหลายของจังหวัดในประเทศไทยผ่านแพลตฟอร์มเชิงโต้ตอบของเรา",
-    // Add the image URL for Twitter Card here
-    images: ["/logo.png"],  // Link to the favicon file in the public folder
+    images: ["/logo.png"], // Link to the favicon file in the public folder
   },
+  // Facebook (uses Open Graph, but can be explicitly reinforced)
+  // No additional namespace needed here, as Open Graph covers it
+  // LinkedIn (also uses Open Graph, but we can add specific meta tags if needed)
+  // Pinterest (uses Open Graph, but we can specify additional properties)
+  // Additional metadata for broader social media compatibility
+  metadataBase: new URL("https://eldermap.vercel.app"),
   robots: "index, follow",
+  // Custom meta tags for broader social media compatibility (optional)
+  other: {
+    // Pinterest-specific tags (optional, as it uses Open Graph)
+    "pinterest:description": "สำรวจมรดกทางวัฒนธรรมและประวัติศาสตร์อันหลากหลายของจังหวัดในประเทศไทยผ่านแพลตฟอร์มเชิงโต้ตอบของเรา",
+    "pinterest:image": "/logo.png",
+    // LinkedIn-specific tags (optional, as it uses Open Graph)
+    "linkedin:title": "Thai Provinces Interactive History Platform",
+    "linkedin:description": "สำรวจมรดกทางวัฒนธรรมและประวัติศาสตร์อันหลากหลายของจังหวัดในประเทศไทยผ่านแพลตฟอร์มเชิงโต้ตอบของเรา",
+    "linkedin:image": "/logo.png",
+  },
 };
 
 export const viewport = {
@@ -69,7 +85,6 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {/* Wrap the entire layout with the GlobalProvider */}
         <GlobalProvider>
           <div className="flex flex-col min-h-screen">
             <Header />
