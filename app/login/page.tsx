@@ -1,228 +1,194 @@
-// app/login/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";  // Import useRouter for navigation
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function AdminLogin() {
   const [loginType, setLoginType] = useState<"username" | "email">("username");
   const [username, setUsername] = useState<string>("");
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  const [error, setError] = useState<string>("");
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [loading, setLoading] = useState<boolean>(false);
-  
-  const { data: session, status } = useSession(); // Use useSession to check session status
-  const router = useRouter(); // To handle redirecting
 
-  // Check if the user is already logged in and redirect
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
   useEffect(() => {
-    if (session) {
-      router.push("/"); // Redirect to homepage if logged in
-    }
+    if (session) router.push("/admin/dashboard");
   }, [session, router]);
+
+  const validateInput = () => {
+    const newErrors: { [key: string]: string } = {};
+    if (loginType === "username") {
+      if (!username) newErrors.username = "Username is required";
+      else if (username.length < 3) newErrors.username = "Username must be at least 3 characters";
+    }
+    if (loginType === "email") {
+      if (!email) newErrors.email = "Email is required";
+      else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = "Invalid email format";
+    }
+    if (!password) newErrors.password = "Password is required";
+    else if (password.length < 6) newErrors.password = "Password must be at least 6 characters";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
-    setError("");
+    if (!validateInput()) return;
 
+    setLoading(true);
     try {
-      const credentials = {
+      const result = await signIn("credentials", {
         username: loginType === "username" ? username : email,
         password,
-        redirect: false, // Handle redirect manually
-      };
-
-      const result = await signIn("credentials", credentials);
+        redirect: false,
+      });
 
       if (result?.error) {
-        switch (result.error) {
-          case "Admin user not found":
-            setError(
-              `No admin found with this ${loginType === "username" ? "username" : "email"}`
-            );
-            break;
-          case "Invalid password":
-            setError("Incorrect password");
-            break;
-          case "Username or email and password are required":
-            setError("Please enter your credentials");
-            break;
-          default:
-            setError("Authentication failed. Please try again.");
-        }
+        toast.error(result.error || "Authentication failed");
         setLoading(false);
         return;
       }
 
-      // Redirect to dashboard or another page after successful login
-      window.location.href = "/admin/dashboard"; // Optional manual redirect
+      toast.success("Login successful!");
+      router.push("/admin/dashboard");
     } catch (err) {
+      toast.error("An unexpected error occurred");
       console.error("Login error:", err);
-      setError("An unexpected error occurred. Please try again later.");
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gradient-to-b from-background to-accent/5">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-primary">
-          Admin Portal
-        </h2>
-        <p className="mt-2 text-center text-sm text-muted-foreground">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background/95 to-accent/10 p-4">
+      <Toaster position="bottom-right" toastOptions={{ duration: 3000 }} />
+      <div className="w-full max-w-md bg-card shadow-2xl rounded-xl p-8 border border-accent/20 glass-effect">
+        <h2 className="text-3xl font-bold text-center text-primary mb-2">Admin Portal</h2>
+        <p className="text-center text-sm text-muted-foreground mb-8">
           Sign in to manage the Thai Provinces platform
         </p>
-      </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-card py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-accent/20">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            {error && (
-              <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
-                <p className="text-sm text-red-700">{error}</p>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Login with
-              </label>
-              <div className="flex gap-4">
-                <button
-                  type="button"
-                  onClick={() => setLoginType("username")}
-                  disabled={loading}
-                  className={`flex-1 py-2 px-4 rounded-md ${
-                    loginType === "username"
-                      ? "bg-primary text-foreground"
-                      : "bg-card text-foreground/20 hover:bg-gray-400"
-                  } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  Username
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLoginType("email")}
-                  disabled={loading}
-                  className={`flex-1 py-2 px-4 rounded-md ${
-                    loginType === "email"
-                      ? "bg-primary text-foreground"
-                      : "bg-card text-foreground/20 hover:bg-gray-400"
-                  } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  Email
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label
-                htmlFor={loginType}
-                className="block text-sm font-medium text-foreground"
-              >
-                {loginType === "username" ? "Username" : "Email"}
-              </label>
-              <input
-                id={loginType}
-                name={loginType}
-                type={loginType === "email" ? "email" : "text"}
-                required
-                value={loginType === "username" ? username : email}
-                onChange={(e) =>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">Login Method</label>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => setLoginType("username")}
+                disabled={loading}
+                className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
                   loginType === "username"
-                    ? setUsername(e.target.value)
-                    : setEmail(e.target.value)
-                }
-                disabled={loading}
-                className={`block w-full rounded-md border border-input bg-background px-3 py-2 text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary ${
-                  loading ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-foreground"
+                    ? "bg-primary text-white shadow-md"
+                    : "bg-card text-foreground/70 hover:bg-accent/20"
+                } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
               >
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                Username
+              </button>
+              <button
+                type="button"
+                onClick={() => setLoginType("email")}
                 disabled={loading}
-                className={`block w-full rounded-md border border-input bg-background px-3 py-2 text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary ${
-                  loading ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className={`flex w-full justify-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200`}
-            >
-              {loading ? (
-                <span className="flex items-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  Signing in...
-                </span>
-              ) : (
-                "Sign in"
-              )}
-            </button>
-          </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-accent/20" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-card text-muted-foreground">
-                  New to the platform?
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <Link
-                href="/admin/register"
-                className={`flex w-full justify-center rounded-md bg-accent/10 px-3 py-2 text-sm font-semibold text-foreground shadow-sm hover:bg-accent/20 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 transition-colors duration-200 ${
-                  loading ? "pointer-events-none opacity-50" : ""
-                }`}
+                className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  loginType === "email"
+                    ? "bg-primary text-white shadow-md"
+                    : "bg-card text-foreground/70 hover:bg-accent/20"
+                } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
               >
-                Request Admin Access
-              </Link>
+                Email
+              </button>
             </div>
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              {loginType === "username" ? "Username" : "Email"}
+            </label>
+            <input
+              type={loginType === "email" ? "email" : "text"}
+              placeholder={loginType === "username" ? "Enter your username" : "Enter your email"}
+              value={loginType === "username" ? username : email}
+              onChange={(e) =>
+                loginType === "username" ? setUsername(e.target.value) : setEmail(e.target.value)
+              }
+              onBlur={validateInput}
+              disabled={loading}
+              className={`w-full px-4 py-3 bg-background border border-input rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 ${
+                errors[loginType] ? "border-destructive" : "hover:border-primary/50"
+              } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+            />
+            {errors[loginType] && (
+              <p className="mt-1 text-xs text-destructive animate-fade-in">{errors[loginType]}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Password</label>
+            <input
+              type="password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onBlur={validateInput}
+              disabled={loading}
+              className={`w-full px-4 py-3 bg-background border border-input rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 ${
+                errors.password ? "border-destructive" : "hover:border-primary/50"
+              } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+            />
+            {errors.password && (
+              <p className="mt-1 text-xs text-destructive animate-fade-in">{errors.password}</p>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className={`w-full py-3 px-4 bg-primary text-white rounded-lg font-semibold shadow-md hover:bg-primary/90 focus:ring-2 focus:ring-primary/50 transition-all duration-200 ${
+              loading ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+          >
+            {loading ? (
+              <span className="flex items-center justify-center">
+                <svg
+                  className="animate-spin h-5 w-5 mr-2 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  />
+                </svg>
+                Signing in...
+              </span>
+            ) : (
+              "Sign In"
+            )}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            New to the platform?{" "}
+            <Link href="/register" className="text-primary hover:underline font-medium">
+              Request Admin Access
+            </Link>
+          </p>
         </div>
       </div>
     </div>

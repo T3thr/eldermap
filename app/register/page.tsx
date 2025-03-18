@@ -1,244 +1,273 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function AdminRegister() {
   const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
+    name: "",
     username: "",
+    email: "",
     password: "",
-    institution: "",
-    researchBackground: "",
-    contributionPlan: "",
+    purpose: "",
+    cv: null as File | null,
   });
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [isValid, setIsValid] = useState(false); // New state to track form validity
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
   const router = useRouter();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  // Validation function
+  const validateInput = () => {
+    const newErrors: { [key: string]: string } = {};
+    if (!formData.name) newErrors.name = "Name is required";
+    else if (formData.name.length < 2) newErrors.name = "Name must be at least 2 characters";
+    if (!formData.username) newErrors.username = "Username is required";
+    else if (formData.username.length < 3) newErrors.username = "Username must be at least 3 characters";
+    if (!formData.email) newErrors.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = "Invalid email format";
+    if (!formData.password) newErrors.password = "Password is required";
+    else if (formData.password.length < 6) newErrors.password = "Password must be at least 6 characters";
+    if (!formData.cv) newErrors.cv = "CV is required";
+    else if (
+      !["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(
+        formData.cv.type
+      )
+    ) {
+      newErrors.cv = "CV must be a PDF, DOC, or DOCX file";
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
+  // Update form validity whenever formData changes
+  useEffect(() => {
+    const isFormValid = !!(
+      formData.name &&
+      formData.username &&
+      formData.email &&
+      formData.password &&
+      formData.cv &&
+      validateInput()
+    );
+    setIsValid(isFormValid);
+  }, [formData]);
 
-    fetch('/api/admin/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(formData),
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('Failed to submit request');
-        }
-        return response.json();
-      })
-      .then((data) => {
-        if (data.error) {
-          setError(data.error);
-        } else {
-          setSuccess(true);
-          setLoading(false);
-          setFormData({
-            fullName: "",
-            email: "",
-            username: "",
-            password: "",
-            institution: "",
-            researchBackground: "",
-            contributionPlan: "",
-          });
-          setTimeout(() => {
-            router.push("/admin/login");
-          }, 3000);
-        }
-      })
-      .catch((err) => {
-        console.error("Registration error:", err);
-        setError("An error occurred while submitting your request");
-      })
-      .finally(() => {
-        setLoading(false);
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!validateInput()) return;
+
+    setLoading(true);
+    const data = new FormData();
+    data.append("name", formData.name);
+    data.append("username", formData.username);
+    data.append("email", formData.email);
+    data.append("password", formData.password);
+    data.append("purpose", formData.purpose || "");
+    if (formData.cv) data.append("cv", formData.cv);
+
+    try {
+      const response = await fetch("/api/register", {
+        method: "POST",
+        body: data,
       });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Registration failed");
+      }
+
+      toast.success("Registration request submitted successfully!");
+      router.push("/login");
+    } catch (err: any) {
+      toast.error(err.message || "An error occurred during registration");
+      console.error("Submission error:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen py-12 sm:px-6 lg:px-8 bg-gradient-to-b from-background to-accent/5">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-primary">
-          Request Admin Access
-        </h2>
-        <p className="mt-2 text-center text-sm text-muted-foreground">
-          Join our platform as a contributor and help preserve Thai history
+    <div className="min-h-screen mt-8 flex items-center justify-center bg-gradient-to-br from-background via-background/95 to-accent/10 p-4">
+      <Toaster position="bottom-right" toastOptions={{ duration: 3000 }} />
+      <div className="w-full max-w-lg bg-card shadow-2xl rounded-xl p-8 border border-accent/20 glass-effect">
+        <h2 className="text-3xl font-bold text-center text-primary mb-2">Request Admin Access</h2>
+        <p className="text-center text-sm text-muted-foreground mb-8">
+          Join our platform as an admin
         </p>
-      </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-2xl">
-        <div className="bg-card py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-accent/20 glass-effect">
-          {success ? (
-            <div className="text-center py-8 space-y-4">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium text-foreground">Request Submitted Successfully!</h3>
-              <p className="text-sm text-muted-foreground">
-                Thank you for your interest in contributing to our platform. We&apos;ll review your application and contact you soon.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Redirecting to login page...
-              </p>
-            </div>
-          ) : (
-            <form className="space-y-6" onSubmit={handleSubmit}>
-              {error && (
-                <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
-                  <div className="flex">
-                    <div className="ml-3">
-                      <p className="text-sm text-red-700">{error}</p>
-                    </div>
-                  </div>
-                </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Full Name</label>
+              <input
+                type="text"
+                placeholder="Enter your full name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onBlur={validateInput}
+                disabled={loading}
+                className={`w-full px-4 py-3 bg-background border border-input rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 ${
+                  errors.name ? "border-destructive" : "hover:border-primary/50"
+                } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+              />
+              {errors.name && (
+                <p className="mt-1 text-xs text-destructive animate-fade-in">{errors.name}</p>
               )}
+            </div>
 
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="fullName" className="block text-sm font-medium text-foreground">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    id="fullName"
-                    name="fullName"
-                    required
-                    value={formData.fullName}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Username</label>
+              <input
+                type="text"
+                placeholder="Enter your username"
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                onBlur={validateInput}
+                disabled={loading}
+                className={`w-full px-4 py-3 bg-background border border-input rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 ${
+                  errors.username ? "border-destructive" : "hover:border-primary/50"
+                } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+              />
+              {errors.username && (
+                <p className="mt-1 text-xs text-destructive animate-fade-in">{errors.username}</p>
+              )}
+            </div>
+          </div>
 
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-foreground">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    required
-                    value={formData.email}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Email</label>
+            <input
+              type="email"
+              placeholder="Enter your email address"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onBlur={validateInput}
+              disabled={loading}
+              className={`w-full px-4 py-3 bg-background border border-input rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 ${
+                errors.email ? "border-destructive" : "hover:border-primary/50"
+              } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+            />
+            {errors.email && (
+              <p className="mt-1 text-xs text-destructive animate-fade-in">{errors.email}</p>
+            )}
+          </div>
 
-                <div>
-                  <label htmlFor="username" className="block text-sm font-medium text-foreground">
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    id="username"
-                    name="username"
-                    required
-                    value={formData.username}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Password</label>
+            <input
+              type="password"
+              placeholder="Create a strong password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              onBlur={validateInput}
+              disabled={loading}
+              className={`w-full px-4 py-3 bg-background border border-input rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 ${
+                errors.password ? "border-destructive" : "hover:border-primary/50"
+              } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+            />
+            {errors.password && (
+              <p className="mt-1 text-xs text-destructive animate-fade-in">{errors.password}</p>
+            )}
+          </div>
 
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-foreground">
-                    Password
-                  </label>
-                  <input
-                    type="password"
-                    id="password"
-                    name="password"
-                    required
-                    value={formData.password}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Purpose (Optional)
+            </label>
+            <textarea
+              placeholder="Why do you want to join as an admin?"
+              value={formData.purpose}
+              onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+              disabled={loading}
+              rows={3}
+              className={`w-full px-4 py-3 bg-background border border-input rounded-lg shadow-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 ${
+                loading ? "opacity-50 cursor-not-allowed" : "hover:border-primary/50"
+              }`}
+            />
+          </div>
 
-                <div>
-                  <label htmlFor="institution" className="block text-sm font-medium text-foreground">
-                    Institution/Organization
-                  </label>
-                  <input
-                    type="text"
-                    id="institution"
-                    name="institution"
-                    value={formData.institution}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-              </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Upload CV</label>
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx"
+              onChange={(e) => setFormData({ ...formData, cv: e.target.files?.[0] || null })}
+              onBlur={validateInput}
+              disabled={loading}
+              className={`w-full px-4 py-3 bg-background border border-input rounded-lg shadow-sm text-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-primary file:text-white file:shadow-sm hover:file:bg-primary/90 transition-all duration-200 ${
+                errors.cv ? "border-destructive" : "hover:border-primary/50"
+              } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+            />
+            {errors.cv && (
+              <p className="mt-1 text-xs text-destructive animate-fade-in">{errors.cv}</p>
+            )}
+          </div>
 
-              <div>
-                <label htmlFor="researchBackground" className="block text-sm font-medium text-foreground">
-                  Academic/Research Background
-                </label>
-                <textarea
-                  id="researchBackground"
-                  name="researchBackground"
-                  rows={3}
-                  required
-                  value={formData.researchBackground}
-                  onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                  placeholder="Please share your background in history, geography, or related fields..."
-                />
-              </div>
-
-              <div>
-                <label htmlFor="contributionPlan" className="block text-sm font-medium text-foreground">
-                  How do you plan to contribute?
-                </label>
-                <textarea
-                  id="contributionPlan"
-                  name="contributionPlan"
-                  rows={3}
-                  required
-                  value={formData.contributionPlan}
-                  onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-foreground shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                  placeholder="Explain how you plan to enhance our historical database..."
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="text-sm">
-                  <Link href="/admin/login" className="font-medium text-primary hover:text-primary/80">
-                    Already have an account? Sign in
-                  </Link>
-                </div>
-              </div>
-
-              <div>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex w-full justify-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+          <button
+            type="submit"
+            disabled={!isValid || loading}
+            className={`w-full py-3 px-4 bg-primary text-white rounded-lg font-semibold shadow-md hover:bg-primary/90 focus:ring-2 focus:ring-primary/50 transition-all duration-200 ${
+              !isValid || loading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+            }`}
+          >
+            {loading ? (
+              <span className="flex items-center justify-center">
+                <svg
+                  className="animate-spin h-5 w-5 mr-2 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
                 >
-                  {loading ? "Submitting..." : "Submit Request"}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  />
+                </svg>
+                Submitting...
+              </span>
+            ) : (
+              <span className="flex items-center justify-center">
+                Submit Request
+                <svg
+                  className="w-5 h-5 ml-2 transition-transform transform group-hover:translate-x-1"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M14 5l7 7m0 0l-7 7m7-7H3"
+                  />
+                </svg>
+              </span>
+            )}
+          </button>
+
+          <p className="text-center text-sm text-muted-foreground mt-4">
+            Already have an account?{" "}
+            <button
+              type="button"
+              onClick={() => router.push("/login")}
+              className="text-primary hover:text-primary/80 cursor-pointer focus:outline-none"
+            >
+              Back to Login
+            </button>
+          </p>
+        </form>
       </div>
     </div>
   );

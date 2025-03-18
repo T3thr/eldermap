@@ -2,7 +2,9 @@
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "@/context/ThemeProvider";
 import FloatingSidebar from "@/components/FloatingSidebar";
+import NewsBanner from "@/components/NewsBanner"; 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation"; // Import usePathname to get the current URL
 
 export default function GlobalProvider({
   children,
@@ -10,6 +12,7 @@ export default function GlobalProvider({
   children: React.ReactNode;
 }) {
   const [mounted, setMounted] = useState(false);
+  const pathname = usePathname(); // Get the current pathname
 
   useEffect(() => {
     setMounted(true);
@@ -23,7 +26,9 @@ export default function GlobalProvider({
     <SessionProvider>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <FloatingSidebar />
-        {children}
+          {/* Conditionally render the NewsBanner only on the homepage */}
+          {pathname === "/" && <NewsBanner />}
+          {children}
       </ThemeProvider>
     </SessionProvider>
   );

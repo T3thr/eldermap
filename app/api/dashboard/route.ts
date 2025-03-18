@@ -1,12 +1,13 @@
 // app/api/dashboard/route.ts
 import { NextResponse } from "next/server";
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase-config";
+import { db } from "@/lib/firebase-config"; // Ensure this matches your actual Firebase config path
 
 interface AdminData {
   email: string;
   name: string;
   username: string;
+  role?: string; // Optional role field from new requirements
 }
 
 interface Province {
@@ -16,12 +17,23 @@ interface Province {
   districtCount: number;
 }
 
+interface RegisterData {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  purpose: string;
+  cvUrl: string;
+  status: "pending" | "approved" | "rejected";
+}
+
 interface DashboardData {
   totalProvinces: number;
   totalAdmins: number;
   totalDistricts: number;
   provinces: Province[];
   admins: AdminData[];
+  registers: RegisterData[];
 }
 
 export async function GET() {
@@ -58,6 +70,22 @@ export async function GET() {
         email: data.email || "",
         name: data.name || "",
         username: data.username || "",
+        role: data.role || undefined, // Include role if present
+      };
+    });
+
+    // Get registers data
+    const registersSnapshot = await getDocs(collection(db, "register"));
+    const registers = registersSnapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: data.id,
+        name: data.name || "",
+        username: data.username || "",
+        email: data.email || "",
+        purpose: data.purpose || "",
+        cvUrl: data.cvUrl || "",
+        status: data.status || "pending",
       };
     });
 
@@ -67,6 +95,7 @@ export async function GET() {
       totalDistricts,
       provinces,
       admins,
+      registers,
     };
 
     return NextResponse.json(dashboardData);

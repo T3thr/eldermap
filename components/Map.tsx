@@ -1,25 +1,32 @@
 import { District, HistoricalPeriod } from "@/lib/districts";
 import { motion } from "framer-motion";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Eye, EyeOff, Grid, MapPin,Home } from "lucide-react";
+import { Eye, EyeOff, Grid, MapPin, Home, Type } from "lucide-react";
 import { throttle } from "lodash";
+import { db } from "@/lib/firebase-config";
+import { collection, getDocs } from "firebase/firestore";
+import { useTheme } from "next-themes";
 
 interface MapProps {
   districts: District[];
   selectedDistricts: District[];
   onDistrictToggle: (district: District) => void;
   selectedPeriod: HistoricalPeriod | null;
-  isGlobalView?: boolean;
+  provinceId?: string;
   onReset?: () => void;
 }
 
+interface DistrictWithProvince extends District {
+  provinceId: string;
+}
+
 export default function Map({
-  districts,
+  districts: initialDistricts,
   selectedDistricts,
   onDistrictToggle,
   selectedPeriod,
-  isGlobalView = false,
-  onReset
+  provinceId,
+  onReset,
 }: MapProps) {
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null);
   const [mapScale, setMapScale] = useState(1);
@@ -29,20 +36,65 @@ export default function Map({
   const [showLegend, setShowLegend] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
   const [showCenterDot, setShowCenterDot] = useState(true);
+  const [showNames, setShowNames] = useState(true);
   const [touchDistance, setTouchDistance] = useState<number | null>(null);
+  const [districts, setDistricts] = useState<DistrictWithProvince[]>([]);
   const mapRef = useRef<SVGSVGElement>(null);
+  const { resolvedTheme } = useTheme();
 
+  // Fetch districts from Firebase only when provinceId changes
+  useEffect(() => {
+    const fetchDistricts = async () => {
+      try {
+        if (provinceId) {
+          const districtsSnapshot = await getDocs(collection(db, `provinces/${provinceId}/districts`));
+          const provinceDistricts: DistrictWithProvince[] = districtsSnapshot.docs.map((districtDoc) => ({
+            ...districtDoc.data(),
+            id: districtDoc.id,
+            provinceId,
+          } as DistrictWithProvince));
+          setDistricts(provinceDistricts);
+        } else {
+          const provincesSnapshot = await getDocs(collection(db, "provinces"));
+          const allDistricts: DistrictWithProvince[] = [];
+          const fetchPromises = provincesSnapshot.docs.map(async (provinceDoc) => {
+            const provId = provinceDoc.id;
+            const districtsSnapshot = await getDocs(collection(db, `provinces/${provId}/districts`));
+            districtsSnapshot.forEach((districtDoc) => {
+              allDistricts.push({
+                ...districtDoc.data(),
+                id: districtDoc.id,
+                provinceId: provId,
+              } as DistrictWithProvince);
+            });
+          });
+
+          await Promise.all(fetchPromises);
+          setDistricts(allDistricts);
+        }
+      } catch (error) {
+        console.error("Error fetching districts:", error);
+      }
+    };
+
+    fetchDistricts();
+  }, [provinceId]);
+
+  // Reset map scale and position when selectedDistricts change
   useEffect(() => {
     setMapScale(1);
     setMapPosition({ x: 0, y: 0 });
   }, [selectedDistricts]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-    setIsDragging(true);
-    setDragStart({ x: clientX - mapPosition.x, y: clientY - mapPosition.y });
-  }, [mapPosition]);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent | React.TouchEvent) => {
+      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+      const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+      setIsDragging(true);
+      setDragStart({ x: clientX - mapPosition.x, y: clientY - mapPosition.y });
+    },
+    [mapPosition]
+  );
 
   const handleMouseMove = useCallback(
     throttle((e: React.MouseEvent | React.TouchEvent) => {
@@ -92,20 +144,33 @@ export default function Map({
   const handleReset = useCallback(() => {
     setMapScale(1);
     setMapPosition({ x: 0, y: 0 });
-    if (onReset) onReset(); // Call onReset when map is reset
+    if (onReset) onReset();
   }, [onReset]);
-  
+
   const getDistrictColor = (district: District) =>
-    isGlobalView && selectedPeriod
-      ? district.historicalPeriods.find((p) => p.era === selectedPeriod.era)?.color || district.historicalColor
-      : selectedDistricts.some((d) => d.id === district.id) && selectedPeriod
+    selectedDistricts.some((d) => d.id === district.id) && selectedPeriod
       ? selectedPeriod.color
       : district.historicalColor;
 
   const getCollabColor = (district: District) =>
     district.collab?.isActive ? "rgba(255, 215, 0, 0.5)" : getDistrictColor(district);
 
-  const viewBox = "0 0 600 400"; // Dynamic sizing could be added based on province data
+  // Memoized line color based on theme
+  const getLineColor = useCallback(() => {
+    const bgColor = resolvedTheme === "dark" ? "#0f0f1a" : "#ffffff";
+    return isColorDark(bgColor) ? "#e0e0ff" : "#171717";
+  }, [resolvedTheme]);
+
+  // Memoized text color based on theme
+  const getTextColor = useCallback(
+    (district: District) => {
+      const bgColor = resolvedTheme === "dark" ? "#0f0f1a" : "#ffffff";
+      return isColorDark(bgColor) ? "#e0e0ff" : "#171717";
+    },
+    [resolvedTheme]
+  );
+
+  const viewBox = "0 0 600 400";
 
   return (
     <div
@@ -119,26 +184,27 @@ export default function Map({
           onClick={() => setMapScale((prev) => Math.min(prev + 0.25, 3.5))}
           className="w-10 h-10 flex items-center justify-center rounded-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/50"
           aria-label="Zoom in"
+          title="Zoom in"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
           </svg>
         </motion.button>
-
         <motion.button
           onClick={handleReset}
           className="w-10 h-10 flex items-center justify-center rounded-full bg-secondary/20 hover:bg-secondary/30 text-secondary border border-secondary/50"
           aria-label="Reset map"
+          title="Set to center"
         >
           <Home className="w-5 h-5" />
         </motion.button>
-
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setMapScale((prev) => Math.max(prev - 0.25, 0.5))}
           className="w-10 h-10 flex items-center justify-center rounded-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/50"
           aria-label="Zoom out"
+          title="Zoom out"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4" />
@@ -152,6 +218,7 @@ export default function Map({
             showGrid ? "bg-primary/30 text-primary" : "bg-card text-foreground/70"
           } hover:bg-primary/40 border border-primary/50`}
           aria-label={showGrid ? "Hide grid" : "Show grid"}
+          title={showGrid ? "Hide grid" : "Show grid"}
         >
           <Grid className="w-5 h-5" />
         </motion.button>
@@ -163,8 +230,21 @@ export default function Map({
             showCenterDot ? "bg-secondary/30 text-secondary" : "bg-card text-foreground/70"
           } hover:bg-secondary/40 border border-secondary/50`}
           aria-label={showCenterDot ? "Hide center dot" : "Show center dot"}
+          title={showCenterDot ? "Hide center dot" : "Show center dot"}
         >
           <MapPin className="w-5 h-5" />
+        </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setShowNames((prev) => !prev)}
+          className={`w-10 h-10 flex items-center justify-center rounded-full ${
+            showNames ? "bg-accent/30 text-accent" : "bg-card text-foreground/70"
+          } hover:bg-accent/40 border border-accent/50`}
+          aria-label={showNames ? "Hide names" : "Show names"}
+          title={showNames ? "Hide names" : "Show names"}
+        >
+          <Type className="w-5 h-5" />
         </motion.button>
       </div>
 
@@ -175,34 +255,28 @@ export default function Map({
           className="absolute bottom-4 left-4 z-20 bg-card/80 rounded-xl p-4 shadow-md max-w-xs w-full sm:max-w-sm glass-effect"
         >
           <div className="flex justify-between items-center mb-3">
-            <h3 className="text-sm font-thai font-medium text-foreground/70">Temporal Legend</h3>
+            <h3 className="text-sm font-thai font-medium text-foreground/70">อำเภอ</h3>
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowLegend(false)}
               className="text-secondary"
               aria-label="Hide legend"
+              title="Hide legend"
             >
               <EyeOff className="w-5 h-5" />
             </motion.button>
           </div>
           <div className="flex flex-wrap gap-2 sm:gap-3">
-            {isGlobalView && selectedPeriod ? (
-              <div className="flex items-center">
-                <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: selectedPeriod.color }} />
-                <span className="text-xs font-thai text-foreground/80">{selectedPeriod.era}</span>
+            {districts.slice(0, 6).map((district) => (
+              <div key={district.id} className="flex items-center">
+                <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: getCollabColor(district) }} />
+                <span className="text-xs font-thai text-foreground/80 truncate max-w-[100px] sm:max-w-[120px]">
+                  {district.thaiName}
+                </span>
               </div>
-            ) : (
-              districts.slice(0, 6).map((district) => (
-                <div key={district.id} className="flex items-center">
-                  <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: getCollabColor(district) }} />
-                  <span className="text-xs font-thai text-foreground/80 truncate max-w-[100px] sm:max-w-[120px]">
-                    {district.name}
-                  </span>
-                </div>
-              ))
-            )}
-            {districts.length > 6 && <span className="text-xs text-foreground/70">+{districts.length - 6} more</span>}
+            ))}
+            {districts.length > 6 && <span className="text-xs text-foreground/70">+{districts.length - 6} เพิ่มเติม</span>}
           </div>
         </motion.div>
       )}
@@ -213,6 +287,7 @@ export default function Map({
           onClick={() => setShowLegend(true)}
           className="absolute bottom-4 left-4 z-20 bg-card/80 rounded-full p-2 text-primary border border-primary/50"
           aria-label="Show legend"
+          title="Show legend"
         >
           <Eye className="w-5 h-5" />
         </motion.button>
@@ -225,9 +300,9 @@ export default function Map({
           className="absolute top-4 left-4 z-20 bg-card/80 rounded-lg p-3 shadow-md max-w-xs w-full glass-effect"
         >
           <span className="text-sm font-thai font-medium text-foreground">{hoveredDistrict}</span>
-          {districts.find((d) => d.name === hoveredDistrict)?.collab?.isActive && (
+          {districts.find((d) => d.thaiName === hoveredDistrict)?.collab?.isActive && (
             <div className="mt-1 text-xs text-yellow-500">
-              Collab: {districts.find((d) => d.name === hoveredDistrict)?.collab?.novelTitle}
+              Collab: {districts.find((d) => d.thaiName === hoveredDistrict)?.collab?.novelTitle}
             </div>
           )}
         </motion.div>
@@ -256,7 +331,7 @@ export default function Map({
             className="w-full h-full max-w-full max-h-full"
             preserveAspectRatio="xMidYMid meet"
             role="region"
-            aria-label={`Map of ${districts.length} districts`}
+            aria-label={`แผนที่ของ ${districts.length} อำเภอ`}
           >
             <defs>
               <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
@@ -265,6 +340,15 @@ export default function Map({
               <filter id="glow">
                 <feGaussianBlur stdDeviation="4" result="blur" />
                 <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+              <filter id="lineColor">
+                <feColorMatrix
+                  type="matrix"
+                  values={`0 0 0 0 ${parseInt(getLineColor().slice(1, 3), 16) / 255}
+                          0 0 0 0 ${parseInt(getLineColor().slice(3, 5), 16) / 255}
+                          0 0 0 0 ${parseInt(getLineColor().slice(5, 7), 16) / 255}
+                          0 0 0 1 0`}
+                />
               </filter>
             </defs>
             {showGrid && <rect width="600" height="400" fill="url(#grid)" opacity="0.4" />}
@@ -283,28 +367,17 @@ export default function Map({
               {districts.map((district) => {
                 const isSelected = selectedDistricts.some((d) => d.id === district.id);
                 const { x, y, width, height } = district.coordinates;
+                const centerX = x + width / 2;
+                const centerY = y + height / 2;
+                const clickableRadius = Math.min(width, height) * 0.3;
 
                 return (
                   <motion.g
                     key={district.id}
                     whileHover={{ scale: 1.08 }}
                     whileTap={{ scale: 0.95 }}
-                    onMouseEnter={() => setHoveredDistrict(district.name)}
+                    onMouseEnter={() => setHoveredDistrict(district.thaiName)}
                     onMouseLeave={() => setHoveredDistrict(null)}
-                    onClick={() => onDistrictToggle(district)}
-                    onTouchStart={(e) => {
-                      e.preventDefault();
-                      onDistrictToggle(district);
-                    }}
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onDistrictToggle(district);
-                      }
-                    }}
-                    role="button"
-                    aria-label={`Toggle ${district.name}`}
                   >
                     {district.mapImageUrl ? (
                       <image
@@ -315,12 +388,10 @@ export default function Map({
                         height={height}
                         preserveAspectRatio="xMidYMid slice"
                         opacity={0.8}
-                        style={{
-                          filter: isSelected ? "url(#glow)" : "",
-                          fill: getCollabColor(district),
-                        }}
+                        filter={`url(#lineColor) ${isSelected ? "url(#glow)" : ""}`}
+                        style={{ fill: getCollabColor(district) }}
                         className="transition-all duration-300"
-                        aria-label={`Map of ${district.name}`}
+                        aria-label={`แผนที่ของ ${district.thaiName}`}
                       />
                     ) : (
                       <rect
@@ -336,19 +407,42 @@ export default function Map({
                         style={{ filter: isSelected ? "url(#glow)" : "" }}
                       />
                     )}
-                    <text
-                      x={x + width / 2}
-                      y={y + height / 2}
-                      textAnchor="middle"
-                      alignmentBaseline="middle"
-                      fill={isColorDark(getCollabColor(district)) ? "#fff" : "#140005"}
-                      fontSize="clamp(10px, 2vw, 14px)"
-                      fontWeight={isSelected ? "bold" : "normal"}
-                      className="font-thai select-none"
-                      opacity={isSelected || hoveredDistrict === district.name ? 1 : 0.8}
-                    >
-                      {district.name}
-                    </text>
+                    <circle
+                      cx={centerX}
+                      cy={centerY}
+                      r={clickableRadius}
+                      fill="transparent"
+                      onClick={() => onDistrictToggle(district)}
+                      onTouchStart={(e) => {
+                        e.preventDefault();
+                        onDistrictToggle(district);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onDistrictToggle(district);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`เลือก ${district.thaiName}`}
+                      className="cursor-pointer"
+                    />
+                    {showNames && (
+                      <text
+                        x={centerX}
+                        y={centerY}
+                        textAnchor="middle"
+                        alignmentBaseline="middle"
+                        fill={getTextColor(district)}
+                        fontSize="clamp(10px, 2vw, 14px)"
+                        fontWeight={isSelected ? "bold" : "normal"}
+                        className="font-thai select-none"
+                        opacity={isSelected || hoveredDistrict === district.thaiName ? 1 : 0.8}
+                      >
+                        {district.thaiName}
+                      </text>
+                    )}
                   </motion.g>
                 );
               })}
@@ -361,7 +455,9 @@ export default function Map({
 }
 
 function isColorDark(color: string): boolean {
-  let r = 0, g = 0, b = 0;
+  let r = 0,
+    g = 0,
+    b = 0;
   if (color.startsWith("#")) {
     if (color.length === 4) {
       r = parseInt(color[1] + color[1], 16);

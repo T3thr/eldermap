@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "next-themes";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sun, Moon } from "lucide-react";
+import { debounce } from "lodash"; // Add lodash for debouncing
 
 interface ThemeToggleProps {
   className?: string;
@@ -12,31 +13,37 @@ interface ThemeToggleProps {
   showLabel?: boolean;
 }
 
-export default function ThemeToggle({ 
-  className = "", 
+export default function ThemeToggle({
+  className = "",
   closeMenuOnToggle,
   size = "md",
-  showLabel = false
+  showLabel = false,
 }: ThemeToggleProps) {
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
   const [isHovered, setIsHovered] = useState(false);
 
   const getSizing = () => {
-    switch(size) {
-      case "sm": return { width: "w-12", height: "h-6", circle: "w-4 h-4", icon: 14 };
-      case "lg": return { width: "w-20", height: "h-10", circle: "w-8 h-8", icon: 20 };
-      default: return { width: "w-16", height: "h-8", circle: "w-6 h-6", icon: 16 };
+    switch (size) {
+      case "sm":
+        return { width: "w-12", height: "h-6", circle: "w-4 h-4", icon: 14 };
+      case "lg":
+        return { width: "w-20", height: "h-10", circle: "w-8 h-8", icon: 20 };
+      default:
+        return { width: "w-16", height: "h-8", circle: "w-6 h-6", icon: 16 };
     }
   };
 
   const { width, height, circle, icon } = getSizing();
 
+  // Mount check
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Initial theme setup (runs only once on mount)
   useEffect(() => {
+    if (!mounted) return;
     const savedTheme = localStorage.getItem("theme");
     if (savedTheme) {
       setTheme(savedTheme);
@@ -44,24 +51,35 @@ export default function ThemeToggle({
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
       setTheme(prefersDark ? "dark" : "light");
     }
-  }, [setTheme]);
+  }, [mounted, setTheme]); // Only runs when mounted changes
+
+  // Sync theme with localStorage and document (debounced to prevent rapid updates)
+  const syncTheme = useCallback(
+    debounce((newTheme: string) => {
+      localStorage.setItem("theme", newTheme);
+      document.documentElement.classList.remove("light", "dark");
+      document.documentElement.classList.add(newTheme);
+    }, 100), // Debounce by 100ms
+    []
+  );
 
   useEffect(() => {
-    if (theme) {
-      localStorage.setItem("theme", theme);
-      document.documentElement.classList.remove("theme-transitioning");
-      document.documentElement.classList.add(theme);
+    if (mounted && theme) {
+      syncTheme(theme);
     }
-  }, [theme]);
+  }, [theme, mounted, syncTheme]);
 
-  const toggleTheme = () => {
-    document.documentElement.classList.add("theme-transitioning");
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setTheme(newTheme);
-    if (closeMenuOnToggle) {
-      closeMenuOnToggle();
-    }
-  };
+  // Debounced toggle function to prevent rapid state updates
+  const toggleTheme = useCallback(
+    debounce(() => {
+      const newTheme = theme === "dark" ? "light" : "dark";
+      setTheme(newTheme);
+      if (closeMenuOnToggle) {
+        closeMenuOnToggle();
+      }
+    }, 200), // Debounce by 200ms
+    [theme, setTheme, closeMenuOnToggle]
+  );
 
   if (!mounted) {
     return <div className={`${width} ${height} rounded-full bg-gray-200 dark:bg-gray-700 ${className}`} />;
@@ -76,7 +94,7 @@ export default function ThemeToggle({
           {isDark ? "Dark" : "Light"}
         </span>
       )}
-      
+
       <motion.div
         className={`relative ${width} ${height} rounded-full cursor-pointer ${className}`}
         onClick={toggleTheme}
@@ -85,50 +103,47 @@ export default function ThemeToggle({
         whileHover={{ scale: 1.0 }}
         whileTap={{ scale: 0.95 }}
       >
-        <motion.div 
+        <motion.div
           className="absolute inset-0 rounded-full transition-colors duration-300"
-          animate={{ 
-            backgroundColor: isDark 
-              ? "rgba(30, 58, 138, 0.6)" 
-              : "rgba(250, 204, 21, 0.5)" 
+          animate={{
+            backgroundColor: isDark ? "rgba(30, 58, 138, 0.6)" : "rgba(250, 204, 21, 0.5)",
           }}
         />
-        
+
         <div className="absolute inset-0 rounded-full overflow-hidden">
-          <div className={`
-            absolute inset-0 
-            bg-gradient-to-r 
-            ${isDark 
-              ? 'from-blue-800/30 to-indigo-900/30' 
-              : 'from-yellow-400/30 to-orange-400/30'
-            }
-            transition-all duration-300
-          `} />
-          
+          <div
+            className={`
+              absolute inset-0 
+              bg-gradient-to-r 
+              ${isDark ? "from-blue-800/30 to-indigo-900/30" : "from-yellow-400/30 to-orange-400/30"}
+              transition-all duration-300
+            `}
+          />
           <AnimatePresence>
-            {isHovered && [...Array(6)].map((_, i) => (
-              <motion.div
-                key={`sparkle-${i}`}
-                className={`absolute rounded-full ${isDark ? "bg-blue-200" : "bg-yellow-200"}`}
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ 
-                  opacity: [0, 1, 0],
-                  scale: [0, 1, 0],
-                  width: isDark ? "1px" : "2px",
-                  height: isDark ? "1px" : "2px",
-                  x: 4 + Math.random() * (parseInt(width.replace("w-", "")) - 8),
-                  y: 2 + Math.random() * (parseInt(height.replace("h-", "")) - 4),
-                }}
-                transition={{ 
-                  duration: 1.5 + Math.random(),
-                  repeat: Infinity,
-                  repeatDelay: Math.random() * 2
-                }}
-              />
-            ))}
+            {isHovered &&
+              [...Array(6)].map((_, i) => (
+                <motion.div
+                  key={`sparkle-${i}`}
+                  className={`absolute rounded-full ${isDark ? "bg-blue-200" : "bg-yellow-200"}`}
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{
+                    opacity: [0, 1, 0],
+                    scale: [0, 1, 0],
+                    width: isDark ? "1px" : "2px",
+                    height: isDark ? "1px" : "2px",
+                    x: 4 + Math.random() * (parseInt(width.replace("w-", "")) - 8),
+                    y: 2 + Math.random() * (parseInt(height.replace("h-", "")) - 4),
+                  }}
+                  transition={{
+                    duration: 1.5 + Math.random(),
+                    repeat: Infinity,
+                    repeatDelay: Math.random() * 2,
+                  }}
+                />
+              ))}
           </AnimatePresence>
         </div>
-        
+
         <motion.div
           className={`
             absolute top-1 
@@ -140,14 +155,14 @@ export default function ThemeToggle({
             overflow-hidden
             transition-colors duration-300
           `}
-          animate={{ 
+          animate={{
             backgroundColor: isDark ? "#1e293b" : "#ffffff",
-            left: isDark ? `calc(70% - ${parseInt(circle.replace("w-", "")) + 4}px)` : "4px" 
+            left: isDark ? `calc(100% - ${parseInt(circle.replace("w-", "")) + 21}px)` : "4px",
           }}
-          transition={{ 
-            type: "spring", 
-            stiffness: 500, 
-            damping: 30
+          transition={{
+            type: "spring",
+            stiffness: 500,
+            damping: 30,
           }}
         >
           <AnimatePresence mode="wait" initial={false}>
@@ -164,7 +179,7 @@ export default function ThemeToggle({
               ) : (
                 <Sun className="text-yellow-400" size={icon} />
               )}
-              
+
               {!isDark && (
                 <div className="absolute inset-0 pointer-events-none">
                   {[...Array(8)].map((_, i) => (
@@ -177,17 +192,17 @@ export default function ThemeToggle({
                         left: "50%",
                         top: "50%",
                         transformOrigin: "0 0",
-                        transform: `rotate(${i * 45}deg) translateY(-${icon * 0.9}px)`
+                        transform: `rotate(${i * 45}deg) translateY(-${icon * 0.9}px)`,
                       }}
                       animate={{
                         opacity: [0.4, 1, 0.4],
-                        height: [`${icon * 0.4}px`, `${icon * 0.6}px`, `${icon * 0.4}px`]
+                        height: [`${icon * 0.4}px`, `${icon * 0.6}px`, `${icon * 0.4}px`],
                       }}
                       transition={{
                         duration: 1.5,
                         repeat: Infinity,
                         delay: i * 0.1,
-                        ease: "easeInOut"
+                        ease: "easeInOut",
                       }}
                     />
                   ))}
@@ -196,9 +211,10 @@ export default function ThemeToggle({
             </motion.div>
           </AnimatePresence>
         </motion.div>
-        
+
         <AnimatePresence>
-          {isDark && isHovered && (
+          {isDark &&
+            isHovered &&
             [...Array(5)].map((_, i) => (
               <motion.div
                 key={`star-${i}`}
@@ -206,11 +222,11 @@ export default function ThemeToggle({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: [0, 1, 0] }}
                 exit={{ opacity: 0 }}
-                transition={{ 
+                transition={{
                   duration: 2 + Math.random() * 2,
                   repeat: Infinity,
                   repeatDelay: Math.random() * 3,
-                  delay: i * 0.3
+                  delay: i * 0.3,
                 }}
                 style={{
                   left: `${15 + Math.random() * 20}%`,
@@ -225,32 +241,31 @@ export default function ThemeToggle({
                   </>
                 )}
               </motion.div>
-            ))
-          )}
+            ))}
         </AnimatePresence>
-        
+
         <AnimatePresence>
           {!isDark && (
             <motion.div
               className="absolute rounded-full bg-gradient-radial from-yellow-200/80 via-yellow-400/10 to-transparent"
               initial={{ opacity: 0, scale: 0.5 }}
-              animate={{ 
-                opacity: [0.3, 0.6, 0.3], 
+              animate={{
+                opacity: [0.3, 0.6, 0.3],
                 scale: [1, 1.2, 1],
               }}
               exit={{ opacity: 0, scale: 0.5 }}
-              transition={{ 
+              transition={{
                 duration: 3,
                 repeat: Infinity,
-                ease: "easeInOut" 
+                ease: "easeInOut",
               }}
               style={{
                 width: `${parseInt(circle.replace("w-", "")) * 3}px`,
                 height: `${parseInt(circle.replace("h-", "")) * 3}px`,
                 left: `4px`,
                 top: `1px`,
-                transform: 'translate(-33%, -33%)',
-                zIndex: 5
+                transform: "translate(-33%, -33%)",
+                zIndex: 5,
               }}
             />
           )}

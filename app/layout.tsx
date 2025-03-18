@@ -3,8 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import NewsBanner from "@/components/NewsBanner"; 
-import GlobalProvider from "../context/GlobalProvider"; // Import the GlobalProvider
+
+import GlobalProvider from "../context/GlobalProvider"; 
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,13 +24,13 @@ export const metadataBase = new URL("https://eldermap.vercel.app");
 // Static Metadata Configuration
 export const metadata: Metadata = {
   title: "Thai Provinces Interactive History Platform",
-  description: "Explore the rich history of Thai provinces with dynamic, interactive web technology.",
-  keywords: "Thai history, interactive map, Phitsanulok, Next.js, Tailwind CSS, provinces, จังหวัด",
-  authors: [{ name: "eldermap_team" }],
+  description: "สำรวจมรดกทางวัฒนธรรมและประวัติศาสตร์อันหลากหลายของจังหวัดในประเทศไทยผ่านแพลตฟอร์มเชิงโต้ตอบของเรา",
+  keywords: "Thai history, interactive map, Phitsanulok, Next.js, Tailwind CSS, provinces, จังหวัด, ประเทศไทย,อำเภอ,โต้ตอบ",
+  authors: [{ name: "Theerapat" }],
   openGraph: {
     title: "Thai Provinces Interactive History Platform",
-    description: "Discover the past and present of Thai provinces through an interactive digital experience.",
-    siteName: "Thai Provinces History Platform",
+    description: "สำรวจมรดกทางวัฒนธรรมและประวัติศาสตร์อันหลากหลายของจังหวัดในประเทศไทยผ่านแพลตฟอร์มเชิงโต้ตอบของเรา",
+    siteName: "ElderMap",
     locale: "th_TH",
     type: "website",
     url: "https://eldermap.vercel.app",
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Thai Provinces Interactive History Platform",
-    description: "Explore the rich history of Thai provinces with dynamic, interactive web technology.",
+    description: "สำรวจมรดกทางวัฒนธรรมและประวัติศาสตร์อันหลากหลายของจังหวัดในประเทศไทยผ่านแพลตฟอร์มเชิงโต้ตอบของเรา",
   },
   robots: "index, follow",
 };
@@ -55,6 +55,7 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
@@ -62,7 +63,6 @@ export default async function RootLayout({
         <GlobalProvider>
           <div className="flex flex-col min-h-screen">
             <Header />
-            <NewsBanner /> {/* Include the NewsBanner component here */}
             <main className="flex-grow container mx-auto px-4 py-8 md:px-8 lg:px-12">
               {children}
             </main>

@@ -9,7 +9,6 @@ import { BookOpen, ChevronDown, ChevronUp, Map as MapIcon } from "lucide-react";
 interface DistrictInfoProps {
   districts: District[];
   period: HistoricalPeriod;
-  isGlobalView?: boolean;
   provinceName?: string;
   provinceData?: Province | null;
 }
@@ -17,7 +16,6 @@ interface DistrictInfoProps {
 export default function DistrictInfo({
   districts,
   period,
-  isGlobalView = false,
   provinceName = "",
   provinceData,
 }: DistrictInfoProps) {
@@ -54,9 +52,7 @@ export default function DistrictInfo({
     ].filter((tab) => tab.id === "overview" || tab.count === undefined || tab.count > 0);
   }, [districts.length, period, isAllDistrictsSelected]);
 
-  const title = isGlobalView
-    ? `${provinceName} Province - ${period.era}`
-    : isAllDistrictsSelected
+  const title = isAllDistrictsSelected
     ? `${provinceName} Province`
     : districts.length === 1
     ? `${districts[0].name} (${districts[0].thaiName})`
@@ -152,13 +148,13 @@ export default function DistrictInfo({
               >
                 {isCollabMode && collabData
                   ? collabData.storylineSnippet
-                  : isGlobalView || isAllDistrictsSelected
+                  : isAllDistrictsSelected
                   ? `During the ${period.era} era, ${provinceName} experienced significant developments across its districts.`
                   : districts.length === 1
                   ? period.description
                   : "Select a single district for detailed information."}
               </motion.p>
-              {districts.length === 1 && !isCollabMode && !isGlobalView && (
+              {districts.length === 1 && !isCollabMode && (
                 <>
                   <CollapsibleSection
                     title="Cultural Significance"

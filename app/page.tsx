@@ -21,7 +21,6 @@ export default function Home() {
   const [allPeriods, setAllPeriods] = useState<HistoricalPeriod[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isGlobalView, setIsGlobalView] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Default to open
   const [isMapFullScreen, setIsMapFullScreen] = useState(false);
   const [provinceSearch, setProvinceSearch] = useState("");
@@ -35,9 +34,8 @@ export default function Home() {
     const savedState = localStorage.getItem("thaiTemporalPortalState");
     if (savedState) {
       try {
-        const { provinceId, provinceSearch, isGlobalView } = JSON.parse(savedState);
+        const { provinceId, provinceSearch } = JSON.parse(savedState);
         setProvinceSearch(provinceSearch || "");
-        setIsGlobalView(isGlobalView || false);
       } catch (err) {
         console.error("Error parsing saved state:", err);
       }
@@ -124,11 +122,10 @@ export default function Home() {
           provinceSearch,
           selectedDistrictIds: selectedDistricts.map((d) => d.id),
           selectedPeriodEra: selectedPeriod?.era,
-          isGlobalView,
         })
       );
     }
-  }, [selectedProvince, selectedDistricts, selectedPeriod, isGlobalView, provinceSearch, isLoading]);
+  }, [selectedProvince, selectedDistricts, selectedPeriod, provinceSearch, isLoading]);
 
   // Fetch data on mount
   useEffect(() => {
@@ -160,7 +157,6 @@ export default function Home() {
 
   // Handlers
   const toggleDistrict = useCallback((district: District) => {
-    setIsGlobalView(false);
     setSelectedDistricts((prev) =>
       prev.some((d) => d.id === district.id) ? prev.filter((d) => d.id !== district.id) : [...prev, district]
     );
@@ -183,12 +179,6 @@ export default function Home() {
     setSelectedProvince(province);
     setSelectedDistricts([]);
     setSelectedPeriod(null);
-    setIsGlobalView(false);
-  }, []);
-
-  const toggleGlobalView = useCallback(() => {
-    setIsGlobalView((prev) => !prev);
-    setSelectedDistricts([]);
   }, []);
 
   const toggleSidebar = useCallback(() => setIsSidebarOpen((prev) => !prev), []);
@@ -235,11 +225,11 @@ export default function Home() {
         transition={{ duration: 0.5 }}
         className="w-full max-w-7xl py-6 px-4 sm:px-6 lg:px-8 text-center"
       >
-        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-thai font-extrabold bg-gradient-to-l from-primary via-accent to-indigo-400 text-transparent bg-clip-text">
-          Thai Temporal Portal
+        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-thai font-extrabold gradient-header">
+          Thailand Temporal Portal
         </h1>
         <p className="text-sm sm:text-base md:text-lg text-foreground/70 mt-2">
-          Explore Thailand&apos;s Historical Journey
+          สำรวจจังหวัดในประเทศไทยผ่านช่วงเวลาต่างๆ
         </p>
       </motion.header>
 
@@ -311,24 +301,9 @@ export default function Home() {
                     </select>
                   </section>
                   <section className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-thai text-foreground/80">Time Period</h2>
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={toggleGlobalView}
-                        className={`px-3 py-1 rounded-lg text-sm border ${
-                          isGlobalView
-                            ? "bg-secondary text-white border-secondary"
-                            : "bg-card text-secondary border-secondary/50 hover:bg-secondary/10"
-                        }`}
-                        aria-label={isGlobalView ? "Switch to District View" : "Switch to Global View"}
-                      >
-                        {isGlobalView ? "District" : "Global"}
-                      </motion.button>
-                    </div>
+                    <h2 className="text-lg font-thai text-foreground/80">Time Period</h2>
                     <PeriodSelector
-                      periods={isGlobalView ? allPeriods : selectedDistricts[0]?.historicalPeriods || []}
+                      periods={selectedDistricts[0]?.historicalPeriods || selectedProvince.districts[0]?.historicalPeriods || []}
                       selectedPeriod={selectedPeriod}
                       onSelectPeriod={(period) => setSelectedPeriod(period)}
                     />
@@ -443,18 +418,18 @@ export default function Home() {
             </div>
             {selectedProvince && (
               <Map
-                districts={selectedProvince.districts}
+                districts={[]} // Empty as Map.tsx fetches from Firebase
                 selectedDistricts={selectedDistricts}
                 onDistrictToggle={toggleDistrict}
                 selectedPeriod={selectedPeriod}
-                isGlobalView={isGlobalView}
+                provinceId={selectedProvince.id} // Pass provinceId to Map.tsx
                 onReset={() => setIsSidebarOpen(true)} // Open sidebar on map reset
               />
             )}
           </motion.section>
 
           <AnimatePresence>
-            {(selectedDistricts.length > 0 || isGlobalView) && selectedPeriod && (
+            {selectedDistricts.length > 0 && selectedPeriod && (
               <motion.section
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -465,7 +440,6 @@ export default function Home() {
                 <DistrictInfo
                   districts={selectedDistricts}
                   period={selectedPeriod}
-                  isGlobalView={isGlobalView}
                   provinceName={selectedProvince?.name || ""}
                   provinceData={selectedProvince}
                 />

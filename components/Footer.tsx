@@ -12,15 +12,15 @@ export default function Footer() {
     <>
       <footer className="bg-card border-t border-border text-foreground py-10">
         <div className="container mx-auto px-4 md:px-8 lg:px-12">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
-            {/* About Section */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 justify-between gap-8">
+            {/* About Section 
             <div>
               <h3 className="text-lg font-bold text-primary mb-4">About CityHistory</h3>
               <p className="text-foreground/70">
                 Explore the rich history of your city through interactive maps and timelines.
               </p>
             </div>
-
+*/}
             {/* Quick Links */}
             <div>
               <h3 className="text-lg font-bold text-primary mb-4">Quick Links</h3>
@@ -50,12 +50,12 @@ export default function Footer() {
 
             {/* Social Media Links */}
             <div>
-              <h3 className="text-lg font-bold text-primary mb-4">Follow Us</h3>
+              <h3 className="text-lg font-bold text-primary mb-4">Follow Me</h3>
               <div className="flex space-x-4">
                 {[
-                  { name: "Twitter", url: "https://twitter.com" },
-                  { name: "Facebook", url: "https://facebook.com" },
-                  { name: "Instagram", url: "https://instagram.com" },
+                  { name: "X (Twitter)", url: "https://twitter.com" },
+                  { name: "Facebook", url: "https://www.facebook.com/t3rapat/" },
+                  { name: "Instagram", url: "https://www.instagram.com/3._rapat/" },
                 ].map((social) => (
                   <a
                     key={social.name}
