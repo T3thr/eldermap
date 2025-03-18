@@ -4,13 +4,14 @@ import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "next-themes";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sun, Moon } from "lucide-react";
-import { debounce } from "lodash"; // Add lodash for debouncing
+import { debounce } from "lodash";
 
 interface ThemeToggleProps {
   className?: string;
   closeMenuOnToggle?: () => void;
   size?: "sm" | "md" | "lg";
   showLabel?: boolean;
+  animationsEnabled?: boolean;
 }
 
 export default function ThemeToggle({
@@ -18,6 +19,7 @@ export default function ThemeToggle({
   closeMenuOnToggle,
   size = "md",
   showLabel = false,
+  animationsEnabled = true,
 }: ThemeToggleProps) {
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
@@ -36,12 +38,10 @@ export default function ThemeToggle({
 
   const { width, height, circle, icon } = getSizing();
 
-  // Mount check
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Initial theme setup (runs only once on mount)
   useEffect(() => {
     if (!mounted) return;
     const savedTheme = localStorage.getItem("theme");
@@ -51,15 +51,12 @@ export default function ThemeToggle({
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
       setTheme(prefersDark ? "dark" : "light");
     }
-  }, [mounted, setTheme]); // Only runs when mounted changes
+  }, [mounted, setTheme]);
 
-  // Sync theme with localStorage and document (debounced to prevent rapid updates)
   const syncTheme = useCallback(
     debounce((newTheme: string) => {
       localStorage.setItem("theme", newTheme);
-      document.documentElement.classList.remove("light", "dark");
-      document.documentElement.classList.add(newTheme);
-    }, 100), // Debounce by 100ms
+    }, 100),
     []
   );
 
@@ -69,7 +66,6 @@ export default function ThemeToggle({
     }
   }, [theme, mounted, syncTheme]);
 
-  // Debounced toggle function to prevent rapid state updates
   const toggleTheme = useCallback(
     debounce(() => {
       const newTheme = theme === "dark" ? "light" : "dark";
@@ -77,7 +73,7 @@ export default function ThemeToggle({
       if (closeMenuOnToggle) {
         closeMenuOnToggle();
       }
-    }, 200), // Debounce by 200ms
+    }, 200),
     [theme, setTheme, closeMenuOnToggle]
   );
 
@@ -100,14 +96,16 @@ export default function ThemeToggle({
         onClick={toggleTheme}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        whileHover={{ scale: 1.0 }}
-        whileTap={{ scale: 0.95 }}
+        whileHover={animationsEnabled ? { scale: 1.0 } : {}}
+        whileTap={animationsEnabled ? { scale: 0.95 } : {}}
       >
         <motion.div
           className="absolute inset-0 rounded-full transition-colors duration-300"
-          animate={{
-            backgroundColor: isDark ? "rgba(30, 58, 138, 0.6)" : "rgba(250, 204, 21, 0.5)",
-          }}
+          animate={
+            animationsEnabled
+              ? { backgroundColor: isDark ? "rgba(30, 58, 138, 0.6)" : "rgba(250, 204, 21, 0.5)" }
+              : { backgroundColor: isDark ? "#1e40af" : "#fbbf24" }
+          }
         />
 
         <div className="absolute inset-0 rounded-full overflow-hidden">
@@ -120,7 +118,7 @@ export default function ThemeToggle({
             `}
           />
           <AnimatePresence>
-            {isHovered &&
+            {isHovered && animationsEnabled &&
               [...Array(6)].map((_, i) => (
                 <motion.div
                   key={`sparkle-${i}`}
@@ -159,19 +157,15 @@ export default function ThemeToggle({
             backgroundColor: isDark ? "#1e293b" : "#ffffff",
             left: isDark ? `calc(100% - ${parseInt(circle.replace("w-", "")) + 21}px)` : "4px",
           }}
-          transition={{
-            type: "spring",
-            stiffness: 500,
-            damping: 30,
-          }}
+          transition={animationsEnabled ? { type: "spring", stiffness: 500, damping: 30 } : { duration: 0 }}
         >
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={isDark ? "dark" : "light"}
-              initial={{ scale: 0, rotate: -30, opacity: 0 }}
-              animate={{ scale: 1, rotate: 0, opacity: 1 }}
-              exit={{ scale: 0, rotate: 30, opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              initial={animationsEnabled ? { scale: 0, rotate: -30, opacity: 0 } : { opacity: 1 }}
+              animate={animationsEnabled ? { scale: 1, rotate: 0, opacity: 1 } : { opacity: 1 }}
+              exit={animationsEnabled ? { scale: 0, rotate: 30, opacity: 0 } : { opacity: 0 }}
+              transition={animationsEnabled ? { duration: 0.2 } : { duration: 0 }}
               className="relative"
             >
               {isDark ? (
@@ -180,7 +174,7 @@ export default function ThemeToggle({
                 <Sun className="text-yellow-400" size={icon} />
               )}
 
-              {!isDark && (
+              {!isDark && animationsEnabled && (
                 <div className="absolute inset-0 pointer-events-none">
                   {[...Array(8)].map((_, i) => (
                     <motion.div
@@ -213,8 +207,7 @@ export default function ThemeToggle({
         </motion.div>
 
         <AnimatePresence>
-          {isDark &&
-            isHovered &&
+          {isDark && isHovered && animationsEnabled &&
             [...Array(5)].map((_, i) => (
               <motion.div
                 key={`star-${i}`}
@@ -245,7 +238,7 @@ export default function ThemeToggle({
         </AnimatePresence>
 
         <AnimatePresence>
-          {!isDark && (
+          {!isDark && animationsEnabled && (
             <motion.div
               className="absolute rounded-full bg-gradient-radial from-yellow-200/80 via-yellow-400/10 to-transparent"
               initial={{ opacity: 0, scale: 0.5 }}

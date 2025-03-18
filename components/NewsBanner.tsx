@@ -174,7 +174,11 @@ const NewsBanner = () => {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showAbout && <About onClose={closeAbout} />}
+        {showAbout && (
+          <div className="fixed inset-0 z-[999]"> {/* Added z-50 here */}
+            <About onClose={closeAbout} />
+          </div>
+        )}
       </AnimatePresence>
     </>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { X, Clock, MapPin, Book, Users, Heart } from 'lucide-react';
+import { X, Clock, MapPin, Book, Users, Heart ,Construction} from 'lucide-react';
 
 interface AboutProps {
   onClose: () => void;
@@ -104,8 +104,8 @@ const About = ({ onClose }: AboutProps) => {
           transition={{ delay: 0.5 }}
         >
           <div className="text-xs text-foreground/60 flex items-center font-thai">
-            <Heart size={14} className="mr-1 text-primary" />
-            อยู่ในช่วงกำลังพัฒนา
+            <Construction size={14} className="mr-1 text-primary" />
+            เว็บไซต์อยู่ในช่วงกำลังพัฒนา...
           </div>
 
           <motion.button
