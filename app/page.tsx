@@ -223,7 +223,7 @@ export default function Home() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-7xl py-6 px-4 sm:px-6 lg:px-8 text-center"
+        className="w-full mt-3 max-w-7xl py-6 px-4 sm:px-6 lg:px-8 text-center"
       >
         <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-thai font-extrabold gradient-header">
           Thailand Temporal Portal
@@ -295,7 +295,7 @@ export default function Home() {
                     >
                       {filteredProvinces.map((province) => (
                         <option key={province.id} value={province.id} className="truncate">
-                          {province.name} ({province.thaiName})
+                          {province.thaiName} ({province.name})
                         </option>
                       ))}
                     </select>
@@ -310,7 +310,7 @@ export default function Home() {
                   </section>
                   <section className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-thai text-foreground/80">Districts</h2>
+                      <h2 className="text-lg font-thai text-foreground/80">อำเภอ</h2>
                       <span className="text-xs text-foreground/60">
                         {selectedDistricts.length} / {selectedProvince?.districts.length || 0}
                       </span>
@@ -347,13 +347,13 @@ export default function Home() {
                               ? "bg-primary/20 border-primary text-primary"
                               : "bg-card border-glass-border text-foreground/80 hover:bg-card/70"
                           }`}
-                          aria-label={`Toggle ${district.name} district`}
+                          aria-label={`Toggle ${district.thaiName} district`}
                         >
                           <div
                             className="w-4 h-4 rounded-full flex-shrink-0"
                             style={{ backgroundColor: district.historicalColor }}
                           />
-                          <span className="truncate text-sm">{district.name}</span>
+                          <span className="truncate text-sm">{district.thaiName}</span>
                         </motion.button>
                       ))}
                     </div>
@@ -382,7 +382,7 @@ export default function Home() {
                     </option>
                     {provinces.map((province) => (
                       <option key={province.id} value={province.id} className="truncate">
-                        {province.name} ({province.thaiName})
+                        {province.thaiName} ({province.name})
                       </option>
                     ))}
                   </select>
