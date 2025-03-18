@@ -13,7 +13,7 @@ interface MapProps {
   onDistrictToggle: (district: District) => void;
   selectedPeriod: HistoricalPeriod | null;
   provinceId?: string;
-  onReset?: () => void;
+  onReset?: (isMobile?: boolean) => void; // Update the type to accept isMobile
 }
 
 interface DistrictWithProvince extends District {
@@ -109,11 +109,11 @@ export default function Map({
     fetchDistricts();
   }, [provinceId]);
 
-  // Reset map scale and position when selectedDistricts change
-  useEffect(() => {
-    setMapScale(1);
-    setMapPosition({ x: 0, y: 0 });
-  }, [selectedDistricts]);
+  // Removed this useEffect to prevent zoom reset on district selection
+  // useEffect(() => {
+  //   setMapScale(1);
+  //   setMapPosition({ x: 0, y: 0 });
+  // }, [selectedDistricts]);
 
   // Calculate if a tap is inside a district
   const isInsideDistrict = (x: number, y: number, district: DistrictWithProvince): boolean => {
@@ -303,8 +303,8 @@ export default function Map({
   const handleReset = useCallback(() => {
     setMapScale(1);
     setMapPosition({ x: 0, y: 0 });
-    if (onReset) onReset();
-  }, [onReset]);
+    if (onReset) onReset(isMobile); // Pass isMobile to onReset
+  }, [onReset, isMobile]);
 
   // Color utilities
   const getDistrictColor = (district: District) =>
@@ -595,12 +595,12 @@ export default function Map({
                 const centerY = y + height / 2;
 
                 return (
-                <motion.g
-                  key={district.id}
-                  initial={{ opacity: 0.8 }}
-                  animate={{
-                    opacity: hoveredDistrict === district.thaiName ? 1 : 0.8, // Only change opacity on hover
-                    scale: hoveredDistrict === district.thaiName ? 1.05 : 1,  // Only scale on hover
+                  <motion.g
+                    key={district.id}
+                    initial={{ opacity: 0.8 }}
+                    animate={{
+                      opacity: hoveredDistrict === district.thaiName ? 1 : 0.8, // Only change opacity on hover
+                      scale: hoveredDistrict === district.thaiName ? 1.05 : 1,  // Only scale on hover
                     }}
                     transition={{ duration: 0.2 }}
                     onMouseEnter={() => setHoveredDistrict(district.thaiName)}

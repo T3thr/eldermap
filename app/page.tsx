@@ -423,7 +423,12 @@ export default function Home() {
                 onDistrictToggle={toggleDistrict}
                 selectedPeriod={selectedPeriod}
                 provinceId={selectedProvince.id} // Pass provinceId to Map.tsx
-                onReset={() => setIsSidebarOpen(true)} // Open sidebar on map reset
+                onReset={(isMobile) => {
+                  // Only open sidebar on reset if not on mobile, or keep it closed if already closed
+                  if (!isMobile || window.innerWidth >= 768) {
+                    setIsSidebarOpen(true);
+                  }
+                }}
               />
             )}
           </motion.section>
