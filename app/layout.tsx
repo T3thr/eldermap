@@ -34,11 +34,22 @@ export const metadata: Metadata = {
     locale: "th_TH",
     type: "website",
     url: "https://eldermap.vercel.app",
+    // Add the image URL for Open Graph here (favicon or a custom image)
+    images: [
+      {
+        url: "/logo.png",  // Link to the favicon file in the public folder
+        width: 1200,
+        height: 630,
+        alt: "Thai Provinces Interactive History Platform",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Thai Provinces Interactive History Platform",
     description: "สำรวจมรดกทางวัฒนธรรมและประวัติศาสตร์อันหลากหลายของจังหวัดในประเทศไทยผ่านแพลตฟอร์มเชิงโต้ตอบของเรา",
+    // Add the image URL for Twitter Card here
+    images: ["/logo.png"],  // Link to the favicon file in the public folder
   },
   robots: "index, follow",
 };
@@ -55,7 +66,6 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
