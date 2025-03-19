@@ -73,7 +73,7 @@ export default function Footer() {
 
           {/* Copyright Notice */}
           <div className="border-t border-border mt-8 pt-6 text-center text-foreground/70 text-sm">
-            &copy; {new Date().getFullYear()} CityHistory. All rights reserved.
+            &copy; {new Date().getFullYear()} ElderMap. All rights reserved.
           </div>
         </div>
       </footer>
