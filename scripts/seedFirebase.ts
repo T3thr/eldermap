@@ -79,8 +79,12 @@ const seedFirebase = async () => {
         collabSymbol: province.collabSymbol || null,
         tags: province.tags,
         createdAt: province.createdAt || Timestamp.now(),
-        createdBy: province.createdBy.map(admin => ({ name: admin.name, id: admin.id })), // Array of Admin objects
-        editor: province.editor.map(admin => ({ name: admin.name, id: admin.id })), // Array of Admin objects
+        createdBy: province.createdBy.map(admin => ({ name: admin.name, id: admin.id })),
+        editor: province.editor?.map(admin => ({ 
+          name: admin.name, 
+          id: admin.id, 
+          role: admin.role 
+        })) || [],
         lock: province.lock,
         version: province.version,
         backgroundSvgPath: province.backgroundSvgPath || null,
@@ -166,8 +170,12 @@ const seedFirebase = async () => {
           population: district.population || null,
           tags: district.tags || null,
           createdAt: district.createdAt || Timestamp.now(),
-          createdBy: district.createdBy.map(admin => ({ name: admin.name, id: admin.id })), // Array of Admin objects
-          editor: district.editor.map(admin => ({ name: admin.name, id: admin.id })), // Array of Admin objects
+          createdBy: district.createdBy.map(admin => ({ name: admin.name, id: admin.id })),
+          editor: district.editor?.map(admin => ({ 
+            name: admin.name, 
+            id: admin.id, 
+            role: admin.role 
+          })) || [],
           lock: district.lock,
           version: district.version,
         });

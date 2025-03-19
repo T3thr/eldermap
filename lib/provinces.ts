@@ -18,7 +18,7 @@ export interface Province {
   tags: string[];
   createdAt: Timestamp;
   createdBy: Admin[]; // Updated to array of admin objects
-  editor: Admin[]; // New field for editors
+  editor?: { id: string; name: string; role: "editor" | "viewer" }[];
   lock: boolean;
   version: number;
   backgroundSvgPath?: string | null;
@@ -96,8 +96,8 @@ export const provinces: Province[] = [
     collabSymbol: 'https://example.com/phitsanulok-collab-logo.png',
     tags: ['Sukhothai', 'historical', 'nature', 'collaboration', 'graphic novel'],
     createdAt: Timestamp.now(),
-    createdBy: [{ name: 'admin1', id: '1' }], // Master admin created this
-    editor: [{ name: 'admin1', id: '1' }], // Master admin is also an editor
+    createdBy: [{ name: 'admin1', id: 'admin1' }], // Master admin created this
+    editor: [{ name: 'admin1', id: '1',role:'editor' }], // Master admin is also an editor
     lock: true,
     version: 1,
     backgroundImageUrl: 'https://example.com/phitsanulok-background.jpg',
@@ -190,8 +190,8 @@ export const provinces: Province[] = [
     collabSymbol: 'https://example.com/chiangmai-collab-logo.png',
     tags: ['Lanna', 'culture', 'tourism', 'historical'],
     createdAt: Timestamp.now(),
-    createdBy: [{ name: 'admin1', id: '1' }],
-    editor: [{ name: 'admin1', id: '1' }],
+    createdBy: [{ name: 'admin1', id: 'admin1' }],
+    editor: [{ name: 'admin1', id: '1',role:'editor' }],
     lock: true,
     version: 1,
     backgroundImageUrl: 'https://example.com/chiangmai-background.jpg',

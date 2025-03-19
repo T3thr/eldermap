@@ -263,7 +263,7 @@ export default function Home() {
               {selectedProvince ? (
                 <div className="flex flex-col space-y-6">
                   <section className="space-y-3">
-                    <h2 className="text-lg font-thai text-foreground/80 text-center">Province</h2>
+                    <h2 className="text-lg font-thai text-foreground/80 text-center">เลือกจังหวัด</h2>
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-foreground/50" />
                       <input
@@ -301,7 +301,7 @@ export default function Home() {
                     </select>
                   </section>
                   <section className="space-y-3">
-                    <h2 className="text-lg font-thai text-foreground/80">Time Period</h2>
+                    <h2 className="text-lg font-thai text-foreground/80">ช่วงเวลาทางประวัติศาสตร์</h2>
                     <PeriodSelector
                       periods={selectedDistricts[0]?.historicalPeriods || selectedProvince.districts[0]?.historicalPeriods || []}
                       selectedPeriod={selectedPeriod}
